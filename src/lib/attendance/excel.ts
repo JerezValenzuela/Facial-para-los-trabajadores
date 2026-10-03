@@ -34,8 +34,18 @@ function minutesToDuration(min: number | null): number | null {
   return min === null ? null : min / 1440;
 }
 
-/** Libro Excel con formato profesional; respeta exactamente los filtros del dashboard. */
-export async function buildAttendanceWorkbook(report: ReportData, filters: ReportFilters): Promise<Buffer> {
+const PHOTO_PX = 56;
+const PHOTO_ROW_HEIGHT = 46; // puntos (≈ 61 px)
+
+/**
+ * Libro Excel con formato profesional; respeta exactamente los filtros del dashboard.
+ * `photos`: miniaturas JPEG por ruta de evidencia (las descarga la ruta de exportación).
+ */
+export async function buildAttendanceWorkbook(
+  report: ReportData,
+  filters: ReportFilters,
+  photos: Map<string, Buffer> = new Map(),
+): Promise<Buffer> {
   const wb = new ExcelJS.Workbook();
   wb.creator = "JerezCons Asistencia";
   wb.created = new Date();
@@ -57,13 +67,16 @@ export async function buildAttendanceWorkbook(report: ReportData, filters: Repor
     { header: "Salida almuerzo", key: "lunchOut", width: 10, fmt: "hh:mm" },
     { header: "Regreso almuerzo", key: "lunchIn", width: 10, fmt: "hh:mm" },
     { header: "Salida final", key: "out", width: 10, fmt: "hh:mm" },
-    { header: "Duración almuerzo", key: "lunch", width: 11, fmt: "[h]:mm" },
+    { header: "Almuerzo permitido", key: "lunchAllowed", width: 11, fmt: "[h]:mm" },
+    { header: "Almuerzo tomado", key: "lunch", width: 11, fmt: "[h]:mm" },
     { header: "Exceso almuerzo (min)", key: "excess", width: 11, fmt: "0" },
     { header: "Atraso (min)", key: "late", width: 10, fmt: "0" },
     { header: "Horas trabajadas", key: "worked", width: 11, fmt: "[h]:mm" },
     { header: "Estado", key: "status", width: 26 },
+    { header: "Foto", key: "photo", width: 10 },
   ];
   ws.columns = columns.map((c) => ({ key: c.key, width: c.width }));
+  const col = (key: string) => columns.findIndex((c) => c.key === key) + 1;
 
   const branchFilter = filters.branchId ? report.branchName.get(filters.branchId) ?? "—" : "Todas";
   const employeeFilter = filters.employeeId
@@ -107,11 +120,13 @@ export async function buildAttendanceWorkbook(report: ReportData, filters: Repor
       lunchOut: excelTime(r.salidaAlmuerzo),
       lunchIn: excelTime(r.regresoAlmuerzo),
       out: excelTime(r.salidaFinal),
+      lunchAllowed: minutesToDuration(report.settings.lunch_allowed_minutes),
       lunch: r.lunchOngoing ? null : minutesToDuration(r.lunchMinutes),
       excess: r.lunchOngoing ? null : r.lunchExcessMinutes,
       late: r.lateMinutes,
       worked: minutesToDuration(r.workedMinutes),
       status: STATUS_LABEL[r.status],
+      photo: null,
     };
     const incomplete = r.status === "incompleto" || r.status === "sin_marcaciones";
     columns.forEach((c, i) => {
@@ -124,14 +139,30 @@ export async function buildAttendanceWorkbook(report: ReportData, filters: Repor
       else if (incomplete) cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: YELLOW_FILL } };
     });
     // Minutos en exceso bien visibles.
-    if (r.lunchExcessMinutes > 0 && !r.lunchOngoing) row.getCell(12).font = { bold: true, color: { argb: RED_TEXT } };
-    if (r.lateMinutes > 0) row.getCell(13).font = { bold: true, color: { argb: RED_TEXT } };
+    if (r.lunchExcessMinutes > 0 && !r.lunchOngoing) row.getCell(col("excess")).font = { bold: true, color: { argb: RED_TEXT } };
+    if (r.lateMinutes > 0) row.getCell(col("late")).font = { bold: true, color: { argb: RED_TEXT } };
+
+    // Foto del trabajador (miniatura de su marcación de ese día), al lado del estado.
+    const jpeg = r.photoPath ? photos.get(r.photoPath) : undefined;
+    if (jpeg) {
+      row.height = PHOTO_ROW_HEIGHT;
+      const imageId = wb.addImage({ buffer: jpeg as unknown as ExcelJS.Buffer, extension: "jpeg" });
+      ws.addImage(imageId, {
+        tl: { col: col("photo") - 1 + 0.12, row: row.number - 1 + 0.06 },
+        ext: { width: PHOTO_PX, height: PHOTO_PX },
+        editAs: "oneCell",
+      });
+    } else if (r.photoPath || r.status !== "sin_marcaciones") {
+      const cell = row.getCell(col("photo"));
+      cell.value = "—";
+      cell.font = { color: { argb: "FF94A3B8" } };
+    }
   });
 
   ws.autoFilter = { from: { row: 4, column: 1 }, to: { row: 4 + Math.max(report.rows.length, 1), column: columns.length } };
 
   const legendRow = 6 + report.rows.length;
-  ws.getCell(legendRow, 1).value = "Rojo: atraso o exceso de almuerzo · Amarillo: marcaciones incompletas · Horas en America/Guayaquil";
+  ws.getCell(legendRow, 1).value = "Rojo: atraso o exceso de almuerzo · Amarillo: marcaciones incompletas · Horas en America/Guayaquil · Foto: miniatura de la entrada del día (o de la primera marcación)";
   ws.getCell(legendRow, 1).font = { italic: true, size: 9, color: { argb: "FF64748B" } };
 
   // ------------------------------------------------------------------ Resumen

@@ -3,7 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/supabase/database.types";
 import { DEFAULT_SETTINGS } from "@/lib/settings";
 import { todayInTz } from "@/lib/time";
-import { buildDailyReport, type ReportRow } from "./calc";
+import { buildDailyReport, type ReportEvent, type ReportRow } from "./calc";
 import type { ReportFilters } from "./filters";
 
 export type ReportData = {
@@ -45,14 +45,14 @@ export async function loadReport(
   };
 
   const ids = (employees ?? []).map((e) => e.id);
-  let events: { employee_id: string; event_type: Database["public"]["Enums"]["attendance_event_type"]; occurred_at: string; work_date: string; branch_id: string | null }[] = [];
+  let events: ReportEvent[] = [];
   if (ids.length) {
     // Paginado: PostgREST limita filas por respuesta.
     const pageSize = 1000;
     for (let fromRow = 0; ; fromRow += pageSize) {
       const { data } = await supabase
         .from("attendance_events")
-        .select("employee_id, event_type, occurred_at, work_date, branch_id")
+        .select("employee_id, event_type, occurred_at, work_date, branch_id, evidence_path")
         .gte("work_date", filters.from)
         .lte("work_date", filters.to)
         .in("employee_id", ids)

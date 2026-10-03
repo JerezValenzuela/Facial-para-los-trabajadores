@@ -91,7 +91,7 @@ export default async function AttendancePage(props: PageProps<"/dashboard">) {
                 <th className="th">Salida alm.</th>
                 <th className="th">Regreso</th>
                 <th className="th">Salida final</th>
-                <th className="th">Almuerzo</th>
+                <th className="th">Alm. tomado</th>
                 <th className="th">Exceso alm.</th>
                 <th className="th">Atraso</th>
                 <th className="th">Horas trab.</th>

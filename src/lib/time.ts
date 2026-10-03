@@ -172,6 +172,15 @@ export function formatMinutes(total: number | null | undefined): string {
   return `${sign}${h} h ${pad(m)} min`;
 }
 
+/** 60 → "1 hora", 120 → "2 horas", 90 → "1 h 30 min", 45 → "45 min" (para mensajes al empleado). */
+export function formatDurationWords(total: number): string {
+  const h = Math.floor(total / 60);
+  const m = total % 60;
+  if (h === 0) return `${m} min`;
+  if (m === 0) return h === 1 ? "1 hora" : `${h} horas`;
+  return `${h} h ${m} min`;
+}
+
 /** "08:00:00" → "08:00" */
 export function shortTime(t: string | null | undefined): string {
   if (!t) return "—";

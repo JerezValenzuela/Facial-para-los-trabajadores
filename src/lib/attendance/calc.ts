@@ -133,6 +133,8 @@ export type ReportEvent = {
   occurred_at: string;
   work_date: string;
   branch_id: string | null;
+  /** Miniatura de evidencia de esa marcación (si se guardó). */
+  evidence_path?: string | null;
 };
 
 export type ReportRow = DaySummary & {
@@ -142,6 +144,8 @@ export type ReportRow = DaySummary & {
   position: string;
   branchId: string;
   entryTime: string;
+  /** Foto del día para el Excel: la de la ENTRADA o, si no hay, la de la primera marcación. */
+  photoPath: string | null;
 };
 
 export function buildDailyReport(input: {
@@ -161,6 +165,16 @@ export function buildDailyReport(input: {
     const rec = byKey.get(key) ?? {};
     rec[ev.event_type] = new Date(ev.occurred_at);
     byKey.set(key, rec);
+  }
+
+  const order: AttendanceEventType[] = ["ENTRADA", "SALIDA_ALMUERZO", "REGRESO_ALMUERZO", "SALIDA_FINAL"];
+  const photoByKey = new Map<string, { path: string; rank: number }>();
+  for (const ev of input.events) {
+    if (!ev.evidence_path) continue;
+    const key = `${ev.employee_id}|${ev.work_date}`;
+    const rank = order.indexOf(ev.event_type);
+    const current = photoByKey.get(key);
+    if (!current || rank < current.rank) photoByKey.set(key, { path: ev.evidence_path, rank });
   }
 
   const lastDay = input.to > input.today ? input.today : input.to;
@@ -194,6 +208,7 @@ export function buildDailyReport(input: {
         position: emp.position,
         branchId: emp.branch_id,
         entryTime: emp.entry_time.slice(0, 5),
+        photoPath: photoByKey.get(`${emp.id}|${date}`)?.path ?? null,
       });
     }
   }

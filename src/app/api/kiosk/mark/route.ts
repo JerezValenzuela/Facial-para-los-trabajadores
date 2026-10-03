@@ -7,7 +7,7 @@ import { businessCode, friendlyDbError } from "@/lib/db-errors";
 import { getSettings } from "@/lib/settings";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { raiseAlert } from "@/lib/alerts";
-import { formatMinutes, formatTime } from "@/lib/time";
+import { formatDurationWords, formatMinutes, formatTime } from "@/lib/time";
 import { logError } from "@/lib/log";
 
 const REASON_BY_CODE: Record<string, FailedReason> = {
@@ -91,6 +91,11 @@ export async function POST(req: Request) {
     info = late > 0 ? `Atraso: ${formatMinutes(late)}` : "¡Llegaste a tiempo!";
   }
 
+  if (eventType === "SALIDA_ALMUERZO") {
+    const back = new Date(occurredAt.getTime() + settings.lunch_allowed_minutes * 60_000);
+    info = `Tienes ${formatDurationWords(settings.lunch_allowed_minutes)} de almuerzo · regresa a las ${formatTime(back)}`;
+  }
+
   if (eventType === "REGRESO_ALMUERZO") {
     const { data: out } = await db
       .from("attendance_events")
@@ -102,10 +107,11 @@ export async function POST(req: Request) {
     if (out) {
       const lunch = computeLunch(new Date(out.occurred_at), occurredAt, settings.lunch_allowed_minutes);
       warn = lunch.excess > 0;
+      const allowed = formatDurationWords(settings.lunch_allowed_minutes);
       info =
         lunch.excess > 0
-          ? `Almuerzo de ${formatMinutes(lunch.minutes)}: ${formatMinutes(lunch.excess)} de exceso`
-          : `Almuerzo de ${formatMinutes(lunch.minutes)}`;
+          ? `Tomaste ${formatMinutes(lunch.minutes)} de almuerzo (tenías ${allowed}): ${formatMinutes(lunch.excess)} de exceso`
+          : `Tomaste ${formatMinutes(lunch.minutes)} de almuerzo (tenías ${allowed}) · ¡A tiempo!`;
       if (lunch.excess > 0 && settings.alert_lunch_excess) {
         const branchName = (emp?.branches as { name: string } | null)?.name ?? "sin sucursal";
         // Se registra (y envía si ALERTS_ENABLED=true) después de responder al kiosco.

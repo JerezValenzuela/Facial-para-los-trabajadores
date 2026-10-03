@@ -3,6 +3,7 @@ import {
   addDays,
   dateInTz,
   dateRange,
+  formatDurationWords,
   formatMinutes,
   formatTime,
   isValidDateStr,
@@ -64,5 +65,11 @@ describe("utilidades de calendario", () => {
     expect(formatMinutes(45)).toBe("45 min");
     expect(formatMinutes(513)).toBe("8 h 33 min");
     expect(formatMinutes(null)).toBe("—");
+  });
+  it("duraciones en palabras para el kiosco", () => {
+    expect(formatDurationWords(60)).toBe("1 hora");
+    expect(formatDurationWords(120)).toBe("2 horas");
+    expect(formatDurationWords(90)).toBe("1 h 30 min");
+    expect(formatDurationWords(45)).toBe("45 min");
   });
 });
