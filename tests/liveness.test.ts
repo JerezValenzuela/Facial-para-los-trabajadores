@@ -92,13 +92,13 @@ describe("verificación de liveness (servidor)", () => {
     expect(verifyLiveness(["blink"], t)).toMatchObject({ ok: false, reason: "salto_de_rostro" });
   });
 
-  it("el reto del kiosco es solo girar a ambos lados (sin parpadeo), en orden aleatorio", () => {
-    expect(kioskSteps(() => 0.1)).toEqual(["turn_right", "turn_left"]);
-    expect(kioskSteps(() => 0.9)).toEqual(["turn_left", "turn_right"]);
-    for (const steps of [kioskSteps(() => 0.1), kioskSteps(() => 0.9)]) {
-      expect(verifyLiveness(steps, trace(steps))).toEqual({ ok: true });
-      expect(verifyLiveness(steps, trace(steps, { still: true })).ok).toBe(false);
-    }
+  it("el reto del kiosco es siempre derecha y luego izquierda (sin parpadeo)", () => {
+    const steps = kioskSteps();
+    expect(steps).toEqual(["turn_right", "turn_left"]);
+    expect(verifyLiveness(steps, trace(steps))).toEqual({ ok: true });
+    expect(verifyLiveness(steps, trace(steps, { still: true })).ok).toBe(false);
+    // Hacerlo al revés (izquierda primero) no cumple el orden pedido.
+    expect(verifyLiveness(steps, trace(["turn_left", "turn_right"])).ok).toBe(false);
   });
 
   it("los retos aleatorios no repiten pasos", () => {

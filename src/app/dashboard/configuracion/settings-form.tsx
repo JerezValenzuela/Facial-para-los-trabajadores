@@ -109,7 +109,7 @@ export function SettingsForm({ values }: { values: SettingsValues }) {
         <input type="hidden" name="liveness_steps" value={values.liveness_steps} />
         <div className="rounded-lg bg-slate-50 p-3 text-sm text-slate-600">
           <p className="font-medium text-slate-800">Prueba de vida en el kiosco</p>
-          Girar la cabeza a la derecha y a la izquierda (orden aleatorio) y luego mirar al centro. Sin parpadeo.
+          Girar la cabeza a la derecha, luego a la izquierda y al final mirar al centro. Sin parpadeo.
         </div>
       </Section>
 

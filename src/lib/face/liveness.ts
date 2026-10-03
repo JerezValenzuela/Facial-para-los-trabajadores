@@ -151,12 +151,12 @@ export function verifyLiveness(steps: LivenessStep[], frames: LivenessFrame[]): 
 }
 
 /**
- * Reto del kiosco: girar a la derecha y a la izquierda (orden aleatorio que
- * decide el SERVIDOR, para que un video grabado no sirva) y luego mirar al
- * centro para la captura final. Sin parpadeo.
+ * Reto del kiosco (orden fijo pedido por JerezCons): girar la cabeza a la
+ * DERECHA, luego a la IZQUIERDA y al final mirar al CENTRO (captura final).
+ * Sin parpadeo. El servidor igual verifica este orden en la traza.
  */
-export function kioskSteps(rand: () => number = Math.random): LivenessStep[] {
-  return rand() < 0.5 ? ["turn_right", "turn_left"] : ["turn_left", "turn_right"];
+export function kioskSteps(): LivenessStep[] {
+  return ["turn_right", "turn_left"];
 }
 
 /** Elige `count` pasos aleatorios sin repetir consecutivos (lo decide el SERVIDOR). */

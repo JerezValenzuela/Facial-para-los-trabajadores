@@ -40,7 +40,7 @@ Las pruebas automáticas se corren con `npm test` (66 pruebas: estados, cálculo
 
 ## 5. Kiosco (`http://localhost:3000/marcar?sucursal=pucara`)
 - [ ] Muestra “Sucursal Pucará”, la etiqueta DEV_MODE y el reloj (hora del servidor).
-- [ ] Al ponerte de frente arranca la **prueba de vida**: girar a la derecha y a la izquierda (orden aleatorio) y luego mirar al centro. No pide parpadear.
+- [ ] Al ponerte de frente arranca la **prueba de vida**: girar a la DERECHA, luego a la IZQUIERDA y luego mirar al CENTRO. No pide parpadear.
 - [ ] **IMPORTANTE:** al girar la cabeza hacia TU izquierda, el punto azul del indicador se mueve hacia la IZQUIERDA de la pantalla. Si se mueve al revés, avísame (es un ajuste de una línea).
 - [ ] Al completar → “Hola, {nombre}” y un botón grande “Registrar entrada”.
 - [ ] Al pulsarlo → pantalla verde con la hora oficial (hh:mm:ss) y “¡Llegaste a tiempo!” o “Atraso: X min”.

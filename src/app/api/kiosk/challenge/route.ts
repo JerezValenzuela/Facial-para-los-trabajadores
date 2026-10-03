@@ -9,9 +9,8 @@ import { logError } from "@/lib/log";
 const CHALLENGE_TTL_MS = 45_000;
 
 /**
- * Emite el reto de liveness (giro a la derecha y a la izquierda en orden aleatorio
- * decidido por el servidor, luego mirar al centro), de un solo uso, ligado a la
- * IP del equipo y con caducidad corta.
+ * Emite el reto de liveness (derecha → izquierda → centro), de un solo uso,
+ * ligado a la IP del equipo y con caducidad corta.
  */
 export async function POST(req: Request) {
   const body = challengeBodySchema.safeParse(await readJsonBody(req, 4_000));
