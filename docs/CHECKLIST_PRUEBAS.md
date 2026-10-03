@@ -86,3 +86,4 @@ Las pruebas automáticas se corren con `npm test` (66 pruebas: estados, cálculo
 - [ ] Cambiar la tolerancia recalcula los atrasos del dashboard.
 - [ ] Desactivar “Guardar miniatura” → las nuevas marcaciones no guardan foto.
 - [ ] **Eliminar datos biométricos** (escribir ELIMINAR) → el kiosco deja de reconocer a esa persona y la ficha pide un nuevo consentimiento.
+- [ ] **Eliminar empleado** (Empleados → Editar → abajo de todo, escribir ELIMINAR) → vuelve a la lista con “Empleado eliminado”; ya no aparece en Empleados, Asistencia ni en el Excel, y sus fotos se borran del bucket.

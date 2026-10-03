@@ -3,7 +3,7 @@
 import { useActionState } from "react";
 import { initialActionResult } from "@/lib/action-result";
 import { ActionMessage, SubmitButton } from "@/components/form-status";
-import { deleteBiometricsAction, recordConsentAction, setEmployeeActiveAction } from "../actions";
+import { deleteBiometricsAction, deleteEmployeeAction, recordConsentAction, setEmployeeActiveAction } from "../actions";
 
 export function ActiveToggle({ id, active }: { id: string; active: boolean }) {
   const [state, action] = useActionState(setEmployeeActiveAction, initialActionResult);
@@ -63,6 +63,29 @@ export function DeleteBiometricsForm({ id, name }: { id: string; name: string })
         confirmMessage={`Se eliminarán de forma permanente los datos biométricos de ${name} y se revocará su consentimiento. ¿Continuar?`}
       >
         Eliminar datos biométricos
+      </SubmitButton>
+    </form>
+  );
+}
+
+export function DeleteEmployeeForm({ id, name }: { id: string; name: string }) {
+  const [state, action] = useActionState(deleteEmployeeAction, initialActionResult);
+  return (
+    <form action={action} className="space-y-3">
+      <input type="hidden" name="id" value={id} />
+      <div>
+        <label className="label" htmlFor="confirm_delete_employee">
+          Escribe <b>ELIMINAR</b> para confirmar
+        </label>
+        <input id="confirm_delete_employee" name="confirm_text" autoComplete="off" className="input max-w-xs" />
+      </div>
+      <ActionMessage state={state} />
+      <SubmitButton
+        className="btn-danger"
+        pendingText="Eliminando…"
+        confirmMessage={`Se eliminará a ${name} por completo, con todas sus marcaciones, permisos y fotos. Esto NO se puede deshacer. ¿Continuar?`}
+      >
+        Eliminar empleado
       </SubmitButton>
     </form>
   );

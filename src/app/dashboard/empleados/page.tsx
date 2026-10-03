@@ -3,7 +3,7 @@ import Link from "next/link";
 import { requireAdminSession } from "@/lib/auth";
 import { BIOMETRIC_LABEL, biometricStatus, embeddedCount } from "@/lib/employees";
 import { shortTime } from "@/lib/time";
-import { Badge, EmptyState, PageHeader } from "@/components/ui";
+import { Badge, EmptyState, Notice, PageHeader } from "@/components/ui";
 import { IconCamera, IconPlus } from "@/components/icons";
 
 export const metadata: Metadata = { title: "Empleados" };
@@ -39,6 +39,14 @@ export default async function EmployeesPage(props: PageProps<"/dashboard/emplead
           </Link>
         }
       />
+
+      {sp.eliminado === "1" && (
+        <div className="mb-4">
+          <Notice tone="success" title="Empleado eliminado">
+            Se borraron sus datos, rostro, marcaciones, permisos y fotos. Ya no aparece en Asistencia ni en el Excel.
+          </Notice>
+        </div>
+      )}
 
       <form className="card mb-4 flex flex-wrap items-end gap-3 p-4" method="get">
         <div>

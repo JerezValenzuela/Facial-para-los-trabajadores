@@ -621,6 +621,10 @@ export type Database = {
         Args: { p_employee_id: string }
         Returns: number
       }
+      admin_delete_employee: {
+        Args: { p_actor_id: string; p_employee_id: string }
+        Returns: Json
+      }
       admin_enroll_face: {
         Args: {
           p_descriptors: Json

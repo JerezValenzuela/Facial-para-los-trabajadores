@@ -123,6 +123,9 @@ Las migraciones están versionadas en `supabase/migrations/` y **ya están aplic
 | `…0003_funciones.sql` | Kiosco (sucursal por IP, rate limit, comparación facial, registro atómico), administración (consentimiento, enrolamiento y borrado biométrico) y cron (alertas y limpieza) |
 | `…0004_storage_evidencias.sql` | Bucket privado `evidencias` |
 | `…0005_admin_invoker.sql` | Endurecimiento: funciones de administración como SECURITY INVOKER |
+| `…0006_eleccion_de_evento.sql` | El empleado elige su marcación (regla “solo hacia adelante”) |
+| `…0007_permisos_y_foto_escena.sql` | Permisos (todo el día / por horas) y foto de escena |
+| `…0008_eliminar_empleado.sql` | `admin_delete_employee`: borra al empleado y todo lo suyo en una transacción (solo el servidor) |
 
 Tablas: `branches`, `branch_ips`, `employees`, `face_templates`, `attendance_events`, `failed_attempts`, `alerts`, `settings` y `admin_users`, más tres de soporte: `kiosk_challenges` (retos de un solo uso), `rate_limits` y `audit_log`.
 

@@ -10,7 +10,7 @@ import { signedEvidenceUrls } from "@/lib/evidence";
 import { Badge, Notice, PageHeader } from "@/components/ui";
 import { IconCamera } from "@/components/icons";
 import { EmployeeForm } from "../employee-form";
-import { ActiveToggle, ConsentForm, DeleteBiometricsForm } from "./employee-panels";
+import { ActiveToggle, ConsentForm, DeleteBiometricsForm, DeleteEmployeeForm } from "./employee-panels";
 
 export const metadata: Metadata = { title: "Empleado" };
 
@@ -174,6 +174,16 @@ export default async function EmployeeDetailPage(props: PageProps<"/dashboard/em
             <DeleteBiometricsForm id={e.id} name={e.full_name} />
           </div>
         )}
+
+        <div className="mt-6 rounded-lg border border-red-300 bg-red-50 p-4">
+          <h3 className="mb-1 font-semibold text-red-800">Eliminar empleado</h3>
+          <p className="mb-3 text-sm text-slate-600">
+            Borra para siempre a este empleado y todo lo suyo: datos, rostro, marcaciones, permisos, fotos e
+            intentos. Ya no aparecerá en Asistencia, Empleados ni en el Excel. <b>No se puede deshacer.</b> Si solo
+            dejó de trabajar y quieres conservar su historial, usa “Desactivar empleado”.
+          </p>
+          <DeleteEmployeeForm id={e.id} name={e.full_name} />
+        </div>
       </section>
     </div>
   );

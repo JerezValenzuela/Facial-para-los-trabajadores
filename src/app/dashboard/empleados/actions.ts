@@ -186,3 +186,38 @@ export async function deleteBiometricsAction(_prev: ActionResult, formData: Form
     return fail(e);
   }
 }
+
+/**
+ * Elimina al empleado por completo: datos, plantillas, marcaciones, permisos,
+ * intentos, alertas y sus fotos. La BD lo hace en una sola transacción y
+ * devuelve las rutas de las fotos para borrarlas de Storage.
+ */
+export async function deleteEmployeeAction(_prev: ActionResult, formData: FormData): Promise<ActionResult> {
+  try {
+    const { user } = await requireAdminSession();
+    const id = uuid.safeParse(formData.get("id"));
+    if (!id.success) return { ok: false, error: "Empleado inválido." };
+    if (formData.get("confirm_text") !== "ELIMINAR") {
+      return { ok: false, error: "Escribe ELIMINAR para confirmar." };
+    }
+    const admin = supabaseAdmin();
+    const { data, error } = await admin.rpc("admin_delete_employee", {
+      p_employee_id: id.data,
+      p_actor_id: user.id,
+    });
+    if (error) return { ok: false, error: friendlyDbError(error) };
+
+    const rutas = (data as { rutas?: unknown } | null)?.rutas;
+    const paths = Array.isArray(rutas) ? rutas.filter((p): p is string => typeof p === "string") : [];
+    for (let i = 0; i < paths.length; i += 100) {
+      // El empleado ya no existe en la BD: si Storage falla, solo quedan fotos huérfanas.
+      const { error: storageError } = await admin.storage.from(EVIDENCE_BUCKET).remove(paths.slice(i, i + 100));
+      if (storageError) logError("empleados-eliminar-fotos", storageError);
+    }
+    revalidatePath(LIST);
+    revalidatePath("/dashboard");
+  } catch (e) {
+    return fail(e);
+  }
+  redirect(`${LIST}?eliminado=1`);
+}
