@@ -1,6 +1,7 @@
 import "server-only";
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
+import type { Database } from "./database.types";
 
 /**
  * Cliente de Supabase con la sesión del administrador (cookies) y la llave
@@ -9,7 +10,7 @@ import { cookies } from "next/headers";
  */
 export async function supabaseServer() {
   const cookieStore = await cookies();
-  return createServerClient(
+  return createServerClient<Database>(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
     {
