@@ -48,7 +48,7 @@ export default async function DashboardLayout({ children }: LayoutProps<"/dashbo
       )}
 
       <div className="flex flex-1">
-        <aside className="hidden w-64 shrink-0 flex-col border-r border-slate-200 bg-white lg:flex">
+        <aside className="hidden w-64 shrink-0 flex-col border-r border-slate-200 bg-white lg:flex print:hidden">
           <div className="flex h-16 items-center gap-3 border-b border-slate-200 px-5">
             <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-brand-600 font-bold text-white">
               J
@@ -74,7 +74,7 @@ export default async function DashboardLayout({ children }: LayoutProps<"/dashbo
         </aside>
 
         <div className="flex min-w-0 flex-1 flex-col">
-          <header className="border-b border-slate-200 bg-white lg:hidden">
+          <header className="border-b border-slate-200 bg-white lg:hidden print:hidden">
             <div className="flex h-14 items-center justify-between px-4">
               <Link href="/dashboard" className="flex items-center gap-2">
                 <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-600 text-sm font-bold text-white">
@@ -90,7 +90,7 @@ export default async function DashboardLayout({ children }: LayoutProps<"/dashbo
             </div>
             <DashboardNav orientation="horizontal" />
           </header>
-          <main className="flex-1 p-4 sm:p-6 lg:p-8">{children}</main>
+          <main className="flex-1 p-4 sm:p-6 lg:p-8 print:p-0">{children}</main>
         </div>
       </div>
     </div>
