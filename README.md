@@ -38,7 +38,7 @@ Stack: Next.js 16 (App Router) · TypeScript · Tailwind CSS 4 · Supabase (Post
                                                             · re-verifica liveness                (los vectores NUNCA salen de Postgres)
                                                             · misma persona todo el reto
                                                             · umbral y ambigüedad
- botón grande "Registrar …"            ── POST ──▶  /api/kiosk/mark        ─────────────▶  kiosk_register_attendance()
+ "¡Hola, Ana! ¿Vas a…?" (4 botones)    ── POST ──▶  /api/kiosk/mark        ─────────────▶  kiosk_register_attendance()
                                                                                                   (atómico: ticket, IP, orden,
                                                                                                    cooldown, hora del servidor)
 ```
@@ -59,7 +59,8 @@ Stack: Next.js 16 (App Router) · TypeScript · Tailwind CSS 4 · Supabase (Post
 4. **Auditoría** completa: intentos fallidos, alertas por intentos repetidos y registro de acciones del administrador.
 
 ### Otras decisiones
-- **Máquina de estados en la base de datos** (`kiosk_register_attendance`): bloqueo de fila, ticket de un solo uso y restricción única `(empleado, día, evento)`. Ni dos clics simultáneos ni un replay pueden duplicar o desordenar marcaciones.
+- **El empleado elige su marcación**: tras reconocerlo, el kiosco muestra “¡Hola, (nombre)! ¿Vas a…?” con **Entrar · Salir a almuerzo · Regresar de almuerzo · Salir**. Lo ya marcado hoy aparece con ✓ y su hora. Regla “solo hacia adelante”: puede saltarse un paso olvidado (p. ej. salir sin marcar almuerzo, que quedará como *Incompleto*), pero nunca repetir ni retroceder.
+- **Registro atómico en la base de datos** (`kiosk_register_attendance`): bloqueo de fila, ticket de un solo uso, regla “solo hacia adelante” y restricción única `(empleado, día, evento)`. Ni dos clics simultáneos ni un replay pueden duplicar o desordenar marcaciones.
 - **Hora oficial = `now()` del servidor de base de datos.** La fecha laboral (`work_date`) se calcula por trigger en `America/Guayaquil`.
 - **Rate limiting en Postgres**: funciona aunque Vercel ejecute varias instancias en paralelo.
 - **RLS en las 12 tablas.** Las funciones de administración son `SECURITY INVOKER`, así que RLS también decide dentro de ellas. Las funciones del kiosco y del cron solo las puede ejecutar `service_role`.

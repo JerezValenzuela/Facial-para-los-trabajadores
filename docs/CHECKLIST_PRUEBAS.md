@@ -42,11 +42,12 @@ Las pruebas automáticas se corren con `npm test` (66 pruebas: estados, cálculo
 - [ ] Muestra “Sucursal Pucará”, la etiqueta DEV_MODE y el reloj (hora del servidor).
 - [ ] Al ponerte de frente arranca la **prueba de vida**: girar a la DERECHA, luego a la IZQUIERDA y luego mirar al CENTRO. No pide parpadear.
 - [ ] **IMPORTANTE:** al girar la cabeza hacia TU izquierda, el punto azul del indicador se mueve hacia la IZQUIERDA de la pantalla. Si se mueve al revés, avísame (es un ajuste de una línea).
-- [ ] Al completar → “Hola, {nombre}” y un botón grande “Registrar entrada”.
+- [ ] Al completar → “¡Hola, {nombre}! ¿Vas a…?” con 4 botones: Entrar, Salir a almuerzo, Regresar de almuerzo, Salir (el sugerido resaltado).
 - [ ] Al pulsarlo → pantalla verde con la hora oficial (hh:mm:ss) y “¡Llegaste a tiempo!” o “Atraso: X min”.
 - [ ] Vuelve sola a la pantalla de espera a los 6 s.
 - [ ] Volver a marcar enseguida → “Acabas de marcar. Espera N segundos”.
-- [ ] Tras 60 s: aparece “Registrar salida a almuerzo” (solo el siguiente evento válido).
+- [ ] Tras 60 s: lo ya marcado aparece con ✓ y su hora; lo anterior queda “Ya no disponible hoy”. Se puede saltar un paso (p. ej. Salir sin marcar almuerzo) pero no repetir ni retroceder.
+- [ ] “← Volver al inicio” (abajo) lleva a la pantalla para elegir Kiosco o Dashboard.
 - [ ] Completar las 4 marcaciones → la siguiente vez: “Ya registraste todas tus marcaciones de hoy”.
 - [ ] Identificado y pulsar “No soy … · cancelar” → vuelve a la espera sin marcar.
 - [ ] Irte de la cámara estando identificado → a los 5 s se cancela solo.

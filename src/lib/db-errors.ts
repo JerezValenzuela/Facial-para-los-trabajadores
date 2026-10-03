@@ -11,7 +11,7 @@ const KNOWN: Record<string, string> = {
   EMPLEADO_NO_EXISTE: "El empleado no existe.",
   EMPLEADO_INACTIVO: "El empleado está desactivado.",
   JORNADA_COMPLETA: "Ya registraste todas las marcaciones de hoy.",
-  FUERA_DE_ORDEN: "Esa marcación no corresponde en este momento.",
+  FUERA_DE_ORDEN: "Esa marcación ya no está disponible hoy (ya registraste una posterior).",
   COOLDOWN: "Acabas de marcar. Espera un momento antes de volver a intentarlo.",
   TICKET_INVALIDO: "La verificación no es válida. Vuelve a intentarlo.",
   TICKET_USADO: "Esta verificación ya fue utilizada.",

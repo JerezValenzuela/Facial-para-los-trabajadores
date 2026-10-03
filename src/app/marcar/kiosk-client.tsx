@@ -18,7 +18,8 @@ import {
   type LivenessStep,
 } from "@/lib/face/liveness";
 import { detectMobile, type DeviceSignals } from "@/lib/security/device";
-import type { AttendanceEventType } from "@/lib/attendance/events";
+import Link from "next/link";
+import { KIOSK_ACTION_LABEL, type AttendanceEventType, type KioskOption } from "@/lib/attendance/events";
 
 // ---------------------------------------------------------------------------
 // Tipos y constantes
@@ -35,8 +36,8 @@ type Phase =
       name: "identified";
       ticket: string;
       firstName: string;
-      nextEvent: AttendanceEventType;
-      nextEventLabel: string;
+      options: KioskOption[];
+      suggested: AttendanceEventType | null;
     }
   | { name: "marking"; firstName: string; label: string }
   | { name: "success"; firstName: string; label: string; time: string; info: string | null; warn: boolean }
@@ -76,6 +77,11 @@ async function api(path: string, body: unknown): Promise<ApiResult> {
   } catch {
     return { ok: false, status: 0, data: { message: "Sin conexión con el servidor. Revisa el internet del local." } };
   }
+}
+
+/** Reloj monotónico (solo se llama desde eventos y efectos, nunca al renderizar). */
+function monotonicNow(): number {
+  return performance.now();
 }
 
 function deviceSignals(): DeviceSignals {
@@ -195,7 +201,7 @@ export function KioskClient({ branchCode }: { branchCode?: string }) {
         });
         return;
       }
-      restUntilRef.current = performance.now() + 3000;
+      restUntilRef.current = monotonicNow() + 3000;
       setPhase({ name: "idle" });
     }, ms);
     return () => window.clearTimeout(id);
@@ -224,7 +230,7 @@ export function KioskClient({ branchCode }: { branchCode?: string }) {
       id: String(r.data.challengeId),
       steps,
       frames: [],
-      t0: performance.now(),
+      t0: monotonicNow(),
       stepIndex: 0,
       flip: 0,
       startDescriptor: start.descriptor,
@@ -266,8 +272,8 @@ export function KioskClient({ branchCode }: { branchCode?: string }) {
         name: "identified",
         ticket: String(d.ticket),
         firstName: employee.firstName,
-        nextEvent: d.nextEvent as AttendanceEventType,
-        nextEventLabel: String(d.nextEventLabel),
+        options: (d.options as KioskOption[]) ?? [],
+        suggested: (d.suggested as AttendanceEventType | null) ?? null,
       });
     } else if (d.status === "cooldown") {
       setPhase({
@@ -304,17 +310,18 @@ export function KioskClient({ branchCode }: { branchCode?: string }) {
     }
   }
 
-  async function confirmMark() {
+  async function confirmMark(eventType: AttendanceEventType) {
     if (phase.name !== "identified") return;
-    const { ticket, nextEvent, nextEventLabel, firstName } = phase;
-    setPhase({ name: "marking", firstName, label: nextEventLabel });
-    const r = await api("/api/kiosk/mark", { ticket, eventType: nextEvent, device: deviceRef.current, branchCode });
+    const { ticket, firstName } = phase;
+    const chosenLabel = KIOSK_ACTION_LABEL[eventType];
+    setPhase({ name: "marking", firstName, label: chosenLabel });
+    const r = await api("/api/kiosk/mark", { ticket, eventType, device: deviceRef.current, branchCode });
     if (!r.ok) return handleError(r);
     beep(true);
     setPhase({
       name: "success",
       firstName: String(r.data.firstName ?? firstName),
-      label: String(r.data.eventLabel ?? nextEventLabel),
+      label: String(r.data.eventLabel ?? chosenLabel),
       time: String(r.data.time ?? ""),
       info: (r.data.info as string | null) ?? null,
       warn: Boolean(r.data.warn),
@@ -322,12 +329,12 @@ export function KioskClient({ branchCode }: { branchCode?: string }) {
   }
 
   function cancelIdentified() {
-    restUntilRef.current = performance.now() + 3000;
+    restUntilRef.current = monotonicNow() + 3000;
     setPhase({ name: "idle" });
   }
 
   const onFrame = useEffectEvent((snap: FaceSnapshot | null) => {
-    const now = performance.now();
+    const now = monotonicNow();
     if (snap && snap.faces >= 1) lastSeenRef.current = now;
 
     // Indicador de giro: tu izquierda se ve a la izquierda. Si la cámara entrega
@@ -646,15 +653,18 @@ export function KioskClient({ branchCode }: { branchCode?: string }) {
 
         {phase.name === "identified" && (
           <div className="flex w-full max-w-2xl flex-col items-center gap-4">
-            <p className="text-3xl font-semibold">Hola, {phase.firstName} 👋</p>
-            <button
-              type="button"
-              onClick={() => void confirmMark()}
-              className="w-full rounded-2xl bg-brand-600 px-8 py-7 text-3xl font-bold shadow-lg shadow-brand-900/40 transition hover:bg-brand-500 focus-visible:outline-4 focus-visible:outline-brand-300 active:scale-[0.99]"
-              autoFocus
-            >
-              Registrar {phase.nextEventLabel.toLowerCase()}
-            </button>
+            <p className="text-4xl font-bold">¡Hola, {phase.firstName}! 👋</p>
+            <p className="text-2xl text-slate-300">¿Vas a…?</p>
+            <div className="grid w-full grid-cols-1 gap-3 sm:grid-cols-2">
+              {phase.options.map((o) => (
+                <OptionButton
+                  key={o.event}
+                  option={o}
+                  suggested={o.event === phase.suggested}
+                  onChoose={() => void confirmMark(o.event)}
+                />
+              ))}
+            </div>
             <button type="button" onClick={cancelIdentified} className="text-lg text-slate-400 underline-offset-4 hover:text-white hover:underline">
               No soy {phase.firstName} · cancelar
             </button>
@@ -662,8 +672,16 @@ export function KioskClient({ branchCode }: { branchCode?: string }) {
         )}
       </div>
 
-      <footer className="px-6 pb-4 text-center text-xs text-slate-500">
-        La hora registrada es la hora oficial del servidor. Tus datos biométricos se tratan conforme a la LOPDP.
+      <footer className="flex flex-col items-center gap-3 px-6 pb-5 text-center">
+        <Link
+          href="/"
+          className="rounded-xl border border-white/15 px-5 py-2.5 text-base font-medium text-slate-200 transition hover:bg-white/10"
+        >
+          ← Volver al inicio
+        </Link>
+        <p className="text-xs text-slate-500">
+          La hora registrada es la hora oficial del servidor. Tus datos biométricos se tratan conforme a la LOPDP.
+        </p>
       </footer>
     </main>
   );
@@ -679,6 +697,55 @@ function Overlay({ children }: { children: React.ReactNode }) {
 
 function Instruction({ children, big }: { children: React.ReactNode; big?: boolean }) {
   return <p className={`text-center font-semibold ${big ? "text-3xl" : "text-xl"}`}>{children}</p>;
+}
+
+const timeOnly = new Intl.DateTimeFormat("es-EC", {
+  timeZone: "America/Guayaquil",
+  hour: "2-digit",
+  minute: "2-digit",
+  hourCycle: "h23",
+});
+
+/** Botón grande de una opción: elegible, ya marcada (✓ hora) o ya no disponible. */
+function OptionButton({
+  option,
+  suggested,
+  onChoose,
+}: {
+  option: KioskOption;
+  suggested: boolean;
+  onChoose: () => void;
+}) {
+  if (option.status === "done") {
+    return (
+      <div className="flex items-center justify-between rounded-2xl border border-emerald-500/40 bg-emerald-500/10 px-6 py-5 text-left">
+        <span className="text-2xl font-semibold text-emerald-200">{option.label}</span>
+        <span className="text-lg text-emerald-300">✓ {option.at ? timeOnly.format(new Date(option.at)) : ""}</span>
+      </div>
+    );
+  }
+  if (option.status === "unavailable") {
+    return (
+      <div className="rounded-2xl border border-white/10 bg-white/5 px-6 py-5 text-left text-2xl font-semibold text-slate-500">
+        {option.label}
+        <span className="mt-1 block text-sm font-normal">Ya no disponible hoy</span>
+      </div>
+    );
+  }
+  const tone = suggested
+    ? "bg-brand-600 shadow-brand-900/40 ring-4 ring-brand-300/60 hover:bg-brand-500"
+    : "bg-slate-700 hover:bg-slate-600";
+  return (
+    <button
+      type="button"
+      onClick={onChoose}
+      autoFocus={suggested}
+      className={`rounded-2xl px-6 py-6 text-left text-3xl font-bold shadow-lg transition focus-visible:outline-4 focus-visible:outline-brand-300 active:scale-[0.99] ${tone}`}
+    >
+      {option.label}
+      {suggested && <span className="mt-1 block text-sm font-medium text-brand-100">Sugerido</span>}
+    </button>
+  );
 }
 
 function StepDots({ total, current }: { total: number; current: number }) {

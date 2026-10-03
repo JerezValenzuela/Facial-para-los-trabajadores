@@ -16,7 +16,7 @@ export default function Home() {
             Abrir kiosco de marcación
           </Link>
           <Link href="/login" className="btn-secondary py-3 text-base">
-            Ingreso administrador
+            Ir al dashboard (administrador)
           </Link>
         </div>
       </div>

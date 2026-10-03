@@ -10,7 +10,7 @@ import {
   traceStats,
   verifyLiveness,
 } from "@/lib/face/liveness";
-import { EVENT_LABEL } from "@/lib/attendance/events";
+import { kioskOptions } from "@/lib/attendance/events";
 import { getSettings } from "@/lib/settings";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { decodeJpegDataUrl, uploadEvidence } from "@/lib/evidence";
@@ -181,13 +181,20 @@ export async function POST(req: Request) {
     return kioskError(503, "servicio", "Servicio no disponible. Intenta en un momento.");
   }
 
+  // Marcaciones de hoy → las 4 opciones (Entrar, Salir a almuerzo, Regresar, Salir) con su estado.
+  const { data: todayEvents } = await db
+    .from("attendance_events")
+    .select("event_type, occurred_at")
+    .eq("employee_id", match.employee_id)
+    .eq("work_date", todayInTz());
+
   return NextResponse.json({
     ok: true,
     status: "identified",
     ticket: ch.id,
     employee: { firstName, fullName: match.full_name },
-    nextEvent: status.next_event,
-    nextEventLabel: EVENT_LABEL[status.next_event],
+    options: kioskOptions(todayEvents ?? []),
+    suggested: status.next_event,
     ticketTtlSeconds: 60,
   });
 }
