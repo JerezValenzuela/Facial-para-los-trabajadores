@@ -146,17 +146,24 @@ export async function deleteBiometricsAction(_prev: ActionResult, formData: Form
     let evidenceRemoved = 0;
     if (formData.get("delete_evidence") === "on") {
       const admin = supabaseAdmin();
-      const [{ data: ev }, { data: fa }] = await Promise.all([
-        admin.from("attendance_events").select("id, evidence_path").eq("employee_id", id.data).not("evidence_path", "is", null),
-        admin.from("failed_attempts").select("id, evidence_path").eq("employee_id", id.data).not("evidence_path", "is", null),
+      // Miniaturas del rostro y fotos de escena de marcaciones, intentos y permisos.
+      const [{ data: ev }, { data: fa }, { data: pe }] = await Promise.all([
+        admin.from("attendance_events").select("evidence_path, scene_path").eq("employee_id", id.data),
+        admin.from("failed_attempts").select("evidence_path").eq("employee_id", id.data).not("evidence_path", "is", null),
+        admin.from("permissions").select("evidence_path, scene_path").eq("employee_id", id.data),
       ]);
-      const paths = [...(ev ?? []), ...(fa ?? [])].map((r) => r.evidence_path!).filter(Boolean);
+      const paths = [
+        ...(ev ?? []).flatMap((r) => [r.evidence_path, r.scene_path]),
+        ...(fa ?? []).map((r) => r.evidence_path),
+        ...(pe ?? []).flatMap((r) => [r.evidence_path, r.scene_path]),
+      ].filter((p): p is string => Boolean(p));
       for (let i = 0; i < paths.length; i += 100) {
         await admin.storage.from(EVIDENCE_BUCKET).remove(paths.slice(i, i + 100));
       }
       await Promise.all([
-        admin.from("attendance_events").update({ evidence_path: null }).eq("employee_id", id.data),
+        admin.from("attendance_events").update({ evidence_path: null, scene_path: null }).eq("employee_id", id.data),
         admin.from("failed_attempts").update({ evidence_path: null }).eq("employee_id", id.data),
+        admin.from("permissions").update({ evidence_path: null, scene_path: null }).eq("employee_id", id.data),
       ]);
       evidenceRemoved = paths.length;
       await supabase.from("audit_log").insert({

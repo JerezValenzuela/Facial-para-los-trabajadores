@@ -48,6 +48,9 @@ Las pruebas automáticas se corren con `npm test` (66 pruebas: estados, cálculo
 - [ ] Volver a marcar enseguida → “Acabas de marcar. Espera N segundos”.
 - [ ] Tras 60 s: lo ya marcado aparece con ✓ y su hora; lo anterior queda “Ya no disponible hoy”. Se puede saltar un paso (p. ej. Salir sin marcar almuerzo) pero no repetir ni retroceder.
 - [ ] “← Volver al inicio” (abajo) lleva a la pantalla para elegir Kiosco o Dashboard.
+- [ ] **Permiso → Todo el día**: pantalla verde “Permiso registrado · Todo el día”; en el dashboard el día sale en celeste “Permiso (todo el día)”.
+- [ ] **Permiso → Por horas**: elegir horas y hora de inicio; muestra “de 08:00 a 10:00”. Si cubre la hora de entrada, al marcar Entrar no cuenta atraso hasta el fin del permiso.
+- [ ] Un segundo permiso el mismo día → “Ya registraste un permiso hoy…”.
 - [ ] Completar las 4 marcaciones → la siguiente vez: “Ya registraste todas tus marcaciones de hoy”.
 - [ ] Identificado y pulsar “No soy … · cancelar” → vuelve a la espera sin marcar.
 - [ ] Irte de la cámara estando identificado → a los 5 s se cancela solo.
@@ -67,7 +70,9 @@ Las pruebas automáticas se corren con `npm test` (66 pruebas: estados, cálculo
 - [ ] Para provocar **exceso de almuerzo**: en Configuración pon “Almuerzo permitido” = 10 min, marca salida a almuerzo, espera 12 min y marca regreso → fila roja y alerta registrada.
 - [ ] Días con marcaciones faltantes → fila **amarilla** “Incompleto”.
 - [ ] Filtros por fecha, sucursal, empleado y “Solo novedades” funcionan.
-- [ ] Clic en el nombre → detalle del día con las 4 miniaturas, IP y distancia facial.
+- [ ] Tocar una fila → ventana “¿Qué fotos quieres ver?” con Todas / Entrada / Salida almuerzo / Regreso / Salida (y Permiso). Se ve la foto completa con el fondo, la cara en pequeño, la hora y si la IP es de la sucursal (✓) o no registrada (⚠ posible marcación fuera del local).
+- [ ] Ficha del empleado → muestra su última foto tomada por el kiosco.
+- [ ] Excel: columna “Permiso” y filas celestes para permisos de todo el día.
 - [ ] **Descargar Excel** respeta los filtros; al abrirlo: encabezado naranja, filas rojas/amarillas, horas con formato hh:mm, hoja “Resumen por empleado”.
 
 ## 8. Alertas (con `ALERTS_ENABLED=false`)

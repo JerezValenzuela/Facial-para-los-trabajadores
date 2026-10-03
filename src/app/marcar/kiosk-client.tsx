@@ -2,6 +2,7 @@
 
 import { useEffect, useEffectEvent, useRef, useState } from "react";
 import {
+  captureScene,
   captureThumbnail,
   computeDescriptor,
   detectFaces,
@@ -20,6 +21,7 @@ import {
 import { detectMobile, type DeviceSignals } from "@/lib/security/device";
 import Link from "next/link";
 import { KIOSK_ACTION_LABEL, type AttendanceEventType, type KioskOption } from "@/lib/attendance/events";
+import { formatPermissionHours, permissionEnd, PERMISSION_HOUR_OPTIONS } from "@/lib/attendance/permissions";
 
 // ---------------------------------------------------------------------------
 // Tipos y constantes
@@ -40,7 +42,16 @@ type Phase =
       suggested: AttendanceEventType | null;
     }
   | { name: "marking"; firstName: string; label: string }
-  | { name: "success"; firstName: string; label: string; time: string; info: string | null; warn: boolean }
+  | { name: "success"; firstName: string; title: string; time: string; info: string | null; warn: boolean }
+  | {
+      name: "permission";
+      ticket: string;
+      firstName: string;
+      step: "kind" | "hours";
+      hours: number | null;
+      startTime: string;
+      sending: boolean;
+    }
   | { name: "notice"; tone: "error" | "info"; title: string; message: string };
 
 type ChallengeState = {
@@ -176,6 +187,7 @@ export function KioskClient({ branchCode }: { branchCode?: string }) {
     if (phase.name === "success") ms = SUCCESS_DISPLAY_MS;
     else if (phase.name === "notice") ms = NOTICE_DISPLAY_MS;
     else if (phase.name === "identified") ms = IDENTIFIED_TIMEOUT_MS;
+    else if (phase.name === "permission" && !phase.sending) ms = IDENTIFIED_TIMEOUT_MS;
     else if (phase.name === "challenge" || phase.name === "final") ms = CHALLENGE_TIMEOUT_MS;
     if (!ms) return;
     const id = window.setTimeout(() => {
@@ -254,12 +266,15 @@ export function KioskClient({ branchCode }: { branchCode?: string }) {
       return;
     }
     const thumbnail = captureThumbnail(video, snap.box);
+    // Foto completa con el fondo: permite verificar que la marcación fue en el local.
+    const scene = captureScene(video);
     setPhase({ name: "verifying" });
     const r = await api("/api/kiosk/identify", {
       challengeId: ch.id,
       frames: ch.frames,
       descriptors: [ch.startDescriptor, end.descriptor],
       thumbnail: thumbnail ?? undefined,
+      scene: scene ?? undefined,
       device: deviceRef.current,
       branchCode,
     });
@@ -321,10 +336,47 @@ export function KioskClient({ branchCode }: { branchCode?: string }) {
     setPhase({
       name: "success",
       firstName: String(r.data.firstName ?? firstName),
-      label: String(r.data.eventLabel ?? chosenLabel),
+      title: `${String(r.data.eventLabel ?? chosenLabel)} ${eventType === "REGRESO_ALMUERZO" ? "registrado" : "registrada"}`,
       time: String(r.data.time ?? ""),
       info: (r.data.info as string | null) ?? null,
       warn: Boolean(r.data.warn),
+    });
+  }
+
+  function startPermission() {
+    if (phase.name !== "identified") return;
+    setPhase({
+      name: "permission",
+      ticket: phase.ticket,
+      firstName: phase.firstName,
+      step: "kind",
+      hours: null,
+      startTime: clock.time.slice(0, 5),
+      sending: false,
+    });
+  }
+
+  async function submitPermission(kind: "dia_completo" | "horas") {
+    if (phase.name !== "permission" || phase.sending) return;
+    const { ticket, firstName, hours, startTime } = phase;
+    if (kind === "horas" && (!hours || !/^\d{2}:\d{2}$/.test(startTime))) return;
+    setPhase({ ...phase, sending: true });
+    const r = await api("/api/kiosk/permission", {
+      ticket,
+      kind,
+      ...(kind === "horas" ? { hours, startTime } : {}),
+      device: deviceRef.current,
+      branchCode,
+    });
+    if (!r.ok) return handleError(r);
+    beep(true);
+    setPhase({
+      name: "success",
+      firstName: String(r.data.firstName ?? firstName),
+      title: "Permiso registrado",
+      time: String(r.data.time ?? ""),
+      info: String(r.data.detail ?? ""),
+      warn: false,
     });
   }
 
@@ -603,7 +655,7 @@ export function KioskClient({ branchCode }: { branchCode?: string }) {
           {phase.name === "success" && (
             <div className="absolute inset-0 flex flex-col items-center justify-center bg-emerald-600/95 p-6 text-center">
               <div className="flex h-24 w-24 items-center justify-center rounded-full bg-white text-6xl text-emerald-600">✓</div>
-              <p className="mt-5 text-3xl font-bold">{phase.label} registrada</p>
+              <p className="mt-5 text-3xl font-bold">{phase.title}</p>
               <p className="mt-2 font-mono text-5xl font-bold tabular-nums">{phase.time}</p>
               <p className="mt-3 text-xl">Gracias, {phase.firstName}</p>
               {phase.info && (
@@ -665,10 +717,27 @@ export function KioskClient({ branchCode }: { branchCode?: string }) {
                 />
               ))}
             </div>
+            <button
+              type="button"
+              onClick={startPermission}
+              className="w-full rounded-2xl border-2 border-sky-400/60 bg-sky-500/15 px-6 py-5 text-left text-3xl font-bold text-sky-100 transition hover:bg-sky-500/25 active:scale-[0.99]"
+            >
+              📝 Permiso
+              <span className="mt-1 block text-sm font-medium text-sky-200">Todo el día o por horas</span>
+            </button>
             <button type="button" onClick={cancelIdentified} className="text-lg text-slate-400 underline-offset-4 hover:text-white hover:underline">
               No soy {phase.firstName} · cancelar
             </button>
           </div>
+        )}
+
+        {phase.name === "permission" && (
+          <PermissionPanel
+            phase={phase}
+            onChange={(patch) => setPhase({ ...phase, ...patch })}
+            onSubmit={(kind) => void submitPermission(kind)}
+            onCancel={cancelIdentified}
+          />
         )}
       </div>
 
@@ -697,6 +766,100 @@ function Overlay({ children }: { children: React.ReactNode }) {
 
 function Instruction({ children, big }: { children: React.ReactNode; big?: boolean }) {
   return <p className={`text-center font-semibold ${big ? "text-3xl" : "text-xl"}`}>{children}</p>;
+}
+
+type PermissionPhase = Extract<Phase, { name: "permission" }>;
+
+/** Pantalla de permiso: "Todo el día" o "Por horas" (cuántas y desde qué hora). */
+function PermissionPanel({
+  phase,
+  onChange,
+  onSubmit,
+  onCancel,
+}: {
+  phase: PermissionPhase;
+  onChange: (patch: Partial<PermissionPhase>) => void;
+  onSubmit: (kind: "dia_completo" | "horas") => void;
+  onCancel: () => void;
+}) {
+  const validTime = /^\d{2}:\d{2}$/.test(phase.startTime);
+  return (
+    <div className="flex w-full max-w-2xl flex-col items-center gap-4">
+      <p className="text-4xl font-bold">📝 Permiso · {phase.firstName}</p>
+      {phase.step === "kind" ? (
+        <>
+          <p className="text-2xl text-slate-300">¿De cuánto es tu permiso?</p>
+          <div className="grid w-full grid-cols-1 gap-3 sm:grid-cols-2">
+            <button
+              type="button"
+              disabled={phase.sending}
+              onClick={() => onSubmit("dia_completo")}
+              className="rounded-2xl bg-brand-600 px-6 py-7 text-left text-3xl font-bold shadow-lg hover:bg-brand-500 disabled:opacity-60"
+            >
+              {phase.sending ? "Registrando…" : "Todo el día"}
+              <span className="mt-1 block text-sm font-medium text-brand-100">No trabajas hoy</span>
+            </button>
+            <button
+              type="button"
+              disabled={phase.sending}
+              onClick={() => onChange({ step: "hours" })}
+              className="rounded-2xl bg-slate-700 px-6 py-7 text-left text-3xl font-bold shadow-lg hover:bg-slate-600"
+            >
+              Por horas
+              <span className="mt-1 block text-sm font-medium text-slate-300">Eliges cuántas y desde qué hora</span>
+            </button>
+          </div>
+        </>
+      ) : (
+        <>
+          <p className="text-2xl text-slate-300">¿Cuántas horas?</p>
+          <div className="grid w-full grid-cols-3 gap-2 sm:grid-cols-5">
+            {PERMISSION_HOUR_OPTIONS.map((h) => (
+              <button
+                key={h}
+                type="button"
+                onClick={() => onChange({ hours: h })}
+                className={`rounded-xl px-3 py-4 text-xl font-bold transition ${
+                  phase.hours === h ? "bg-brand-600 ring-4 ring-brand-300/60" : "bg-slate-700 hover:bg-slate-600"
+                }`}
+              >
+                {formatPermissionHours(h)}
+              </button>
+            ))}
+          </div>
+          <label className="mt-2 flex flex-wrap items-center justify-center gap-3 text-2xl text-slate-300">
+            ¿A qué hora empieza?
+            <input
+              type="time"
+              value={phase.startTime}
+              onChange={(e) => onChange({ startTime: e.target.value })}
+              className="rounded-xl border border-white/20 bg-slate-800 px-4 py-2 font-mono text-3xl text-white"
+            />
+          </label>
+          {phase.hours && validTime && (
+            <p className="text-lg text-sky-300">
+              Permiso de {formatPermissionHours(phase.hours)}: de {phase.startTime} a {permissionEnd(phase.startTime, phase.hours)}
+            </p>
+          )}
+          <button
+            type="button"
+            disabled={!phase.hours || !validTime || phase.sending}
+            onClick={() => onSubmit("horas")}
+            className="w-full rounded-2xl bg-brand-600 px-6 py-5 text-3xl font-bold shadow-lg hover:bg-brand-500 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            {phase.sending ? "Registrando…" : "Registrar permiso"}
+          </button>
+        </>
+      )}
+      <button
+        type="button"
+        onClick={() => (phase.step === "hours" ? onChange({ step: "kind" }) : onCancel())}
+        className="text-lg text-slate-400 underline-offset-4 hover:text-white hover:underline"
+      >
+        {phase.step === "hours" ? "← Atrás" : "Cancelar"}
+      </button>
+    </div>
+  );
 }
 
 const timeOnly = new Intl.DateTimeFormat("es-EC", {

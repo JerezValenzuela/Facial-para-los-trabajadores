@@ -82,13 +82,25 @@ export async function POST(req: Request) {
   let warn = false;
 
   if (eventType === "ENTRADA" && emp) {
-    const late = computeLateMinutes(occurredAt, row.work_date, {
-      entryTime: emp.entry_time,
-      toleranceMinutes: settings.entry_tolerance_minutes,
-      lunchAllowedMinutes: settings.lunch_allowed_minutes,
-    });
+    // Un permiso de hoy que cubra la hora de entrada no cuenta como atraso.
+    const { data: perm } = await db
+      .from("permissions")
+      .select("kind, start_time, hours")
+      .eq("employee_id", row.employee_id)
+      .eq("work_date", row.work_date)
+      .maybeSingle();
+    const late = computeLateMinutes(
+      occurredAt,
+      row.work_date,
+      {
+        entryTime: emp.entry_time,
+        toleranceMinutes: settings.entry_tolerance_minutes,
+        lunchAllowedMinutes: settings.lunch_allowed_minutes,
+      },
+      perm ? { kind: perm.kind, startTime: perm.start_time, hours: perm.hours } : null,
+    );
     warn = late > 0;
-    info = late > 0 ? `Atraso: ${formatMinutes(late)}` : "¡Llegaste a tiempo!";
+    info = late > 0 ? `Atraso: ${formatMinutes(late)}` : perm ? "Con permiso registrado · ¡a tiempo!" : "¡Llegaste a tiempo!";
   }
 
   if (eventType === "SALIDA_ALMUERZO") {

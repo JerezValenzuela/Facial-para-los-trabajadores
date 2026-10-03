@@ -1,6 +1,7 @@
 import "server-only";
 import ExcelJS from "exceljs";
 import { STATUS_LABEL, type ReportRow } from "./calc";
+import { formatPermission } from "./permissions";
 import type { ReportData } from "./report-data";
 import type { ReportFilters } from "./filters";
 import { formatDateTime, TZ } from "@/lib/time";
@@ -8,6 +9,7 @@ import { formatDateTime, TZ } from "@/lib/time";
 const RED_FILL = "FFFDE2E2";
 const RED_TEXT = "FFB91C1C";
 const YELLOW_FILL = "FFFEF3C7";
+const BLUE_FILL = "FFE0F2FE";
 const HEADER_FILL = "FFEA580C";
 const BORDER = { style: "thin" as const, color: { argb: "FFE2E8F0" } };
 
@@ -72,6 +74,7 @@ export async function buildAttendanceWorkbook(
     { header: "Exceso almuerzo (min)", key: "excess", width: 11, fmt: "0" },
     { header: "Atraso (min)", key: "late", width: 10, fmt: "0" },
     { header: "Horas trabajadas", key: "worked", width: 11, fmt: "[h]:mm" },
+    { header: "Permiso", key: "permission", width: 30 },
     { header: "Estado", key: "status", width: 26 },
     { header: "Foto", key: "photo", width: 10 },
   ];
@@ -125,6 +128,7 @@ export async function buildAttendanceWorkbook(
       excess: r.lunchOngoing ? null : r.lunchExcessMinutes,
       late: r.lateMinutes,
       worked: minutesToDuration(r.workedMinutes),
+      permission: formatPermission(r.permission) || null,
       status: STATUS_LABEL[r.status],
       photo: null,
     };
@@ -137,6 +141,7 @@ export async function buildAttendanceWorkbook(
       cell.alignment = { vertical: "middle", horizontal: i <= 4 ? "left" : "center" };
       if (r.flagged) cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: RED_FILL } };
       else if (incomplete) cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: YELLOW_FILL } };
+      else if (r.status === "permiso") cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: BLUE_FILL } };
     });
     // Minutos en exceso bien visibles.
     if (r.lunchExcessMinutes > 0 && !r.lunchOngoing) row.getCell(col("excess")).font = { bold: true, color: { argb: RED_TEXT } };
@@ -162,7 +167,7 @@ export async function buildAttendanceWorkbook(
   ws.autoFilter = { from: { row: 4, column: 1 }, to: { row: 4 + Math.max(report.rows.length, 1), column: columns.length } };
 
   const legendRow = 6 + report.rows.length;
-  ws.getCell(legendRow, 1).value = "Rojo: atraso o exceso de almuerzo · Amarillo: marcaciones incompletas · Horas en America/Guayaquil · Foto: miniatura de la entrada del día (o de la primera marcación)";
+  ws.getCell(legendRow, 1).value = "Rojo: atraso o exceso de almuerzo · Amarillo: marcaciones incompletas · Celeste: permiso todo el día · Horas en America/Guayaquil · Foto: miniatura de la entrada del día (o de la primera marcación)";
   ws.getCell(legendRow, 1).font = { italic: true, size: 9, color: { argb: "FF64748B" } };
 
   // ------------------------------------------------------------------ Resumen

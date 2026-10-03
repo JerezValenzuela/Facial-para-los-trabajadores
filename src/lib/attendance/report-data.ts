@@ -3,7 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/supabase/database.types";
 import { DEFAULT_SETTINGS } from "@/lib/settings";
 import { todayInTz } from "@/lib/time";
-import { buildDailyReport, type ReportEvent, type ReportRow } from "./calc";
+import { buildDailyReport, type ReportEvent, type ReportPermission, type ReportRow } from "./calc";
 import type { ReportFilters } from "./filters";
 
 export type ReportData = {
@@ -12,7 +12,7 @@ export type ReportData = {
   employees: { id: string; full_name: string; branch_id: string; active: boolean }[];
   branchName: Map<string, string>;
   settings: { entry_tolerance_minutes: number; lunch_allowed_minutes: number; work_days: number[] };
-  totals: { rows: number; late: number; lunchExcess: number; incomplete: number };
+  totals: { rows: number; late: number; lunchExcess: number; incomplete: number; permissions: number };
 };
 
 /**
@@ -63,9 +63,21 @@ export async function loadReport(
     }
   }
 
+  let permissions: ReportPermission[] = [];
+  if (ids.length) {
+    const { data } = await supabase
+      .from("permissions")
+      .select("employee_id, work_date, kind, start_time, hours")
+      .gte("work_date", filters.from)
+      .lte("work_date", filters.to)
+      .in("employee_id", ids);
+    permissions = data ?? [];
+  }
+
   let rows = buildDailyReport({
     employees: employees ?? [],
     events,
+    permissions,
     from: filters.from,
     to: filters.to,
     today: todayInTz(now),
@@ -74,7 +86,9 @@ export async function loadReport(
     toleranceMinutes: settings.entry_tolerance_minutes,
     lunchAllowedMinutes: settings.lunch_allowed_minutes,
   });
-  if (filters.onlyIssues) rows = rows.filter((r) => r.flagged || r.status === "incompleto" || r.status === "sin_marcaciones");
+  if (filters.onlyIssues) {
+    rows = rows.filter((r) => r.flagged || r.status === "incompleto" || r.status === "sin_marcaciones" || r.permission);
+  }
 
   return {
     rows,
@@ -87,6 +101,7 @@ export async function loadReport(
       late: rows.filter((r) => r.lateMinutes > 0).length,
       lunchExcess: rows.filter((r) => r.lunchExcessMinutes > 0).length,
       incomplete: rows.filter((r) => r.status === "incompleto" || r.status === "sin_marcaciones").length,
+      permissions: rows.filter((r) => r.permission).length,
     },
   };
 }

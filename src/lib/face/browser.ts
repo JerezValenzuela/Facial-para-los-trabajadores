@@ -111,6 +111,24 @@ export function captureThumbnail(
   return canvas.toDataURL("image/jpeg", quality);
 }
 
+/**
+ * Foto completa de la escena (cuadro entero, con el fondo), reducida para que
+ * pese poco (~25–45 KB). Sirve para comprobar que la marcación fue en el local.
+ */
+export function captureScene(video: HTMLVideoElement, width = 480, quality = 0.7): string | null {
+  if (!video.videoWidth || !video.videoHeight) return null;
+  const height = Math.round((width * video.videoHeight) / video.videoWidth);
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return null;
+  ctx.drawImage(video, 0, 0, width, height);
+  const dataUrl = canvas.toDataURL("image/jpeg", quality);
+  // Si una cámara muy detallada supera el límite, se reduce la calidad.
+  return dataUrl.length > 125_000 ? canvas.toDataURL("image/jpeg", 0.5) : dataUrl;
+}
+
 /** Abre la cámara frontal. Lanza un Error con mensaje en español si falla. */
 export async function openCamera(video: HTMLVideoElement): Promise<MediaStream> {
   if (!navigator.mediaDevices?.getUserMedia) {

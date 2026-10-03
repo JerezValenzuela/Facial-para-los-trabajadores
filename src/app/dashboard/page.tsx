@@ -1,12 +1,11 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { requireAdminSession } from "@/lib/auth";
 import { filtersToQuery, MAX_RANGE_DAYS, parseReportFilters } from "@/lib/attendance/filters";
 import { loadReport } from "@/lib/attendance/report-data";
-import { STATUS_LABEL, type ReportRow } from "@/lib/attendance/calc";
-import { formatDateLabel, formatMinutes, formatTime } from "@/lib/time";
-import { Badge, EmptyState, PageHeader } from "@/components/ui";
+import { formatDateLabel } from "@/lib/time";
+import { EmptyState, PageHeader } from "@/components/ui";
 import { IconDownload } from "@/components/icons";
+import { AttendanceTable } from "./attendance-table";
 
 export const metadata: Metadata = { title: "Asistencia" };
 
@@ -67,11 +66,12 @@ export default async function AttendancePage(props: PageProps<"/dashboard">) {
         <p className="text-xs text-slate-500 sm:col-span-2 lg:col-span-6">Rango máximo: {MAX_RANGE_DAYS} días.</p>
       </form>
 
-      <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-5">
         <Stat label="Registros" value={report.totals.rows} />
         <Stat label="Con atraso" value={report.totals.late} tone="red" />
         <Stat label="Exceso de almuerzo" value={report.totals.lunchExcess} tone="red" />
         <Stat label="Incompletos" value={report.totals.incomplete} tone="yellow" />
+        <Stat label="Permisos" value={report.totals.permissions} />
       </div>
 
       {report.rows.length === 0 ? (
@@ -79,86 +79,15 @@ export default async function AttendancePage(props: PageProps<"/dashboard">) {
           Prueba con otro rango de fechas o revisa que haya empleados activos.
         </EmptyState>
       ) : (
-        <div className="card overflow-x-auto">
-          <table className="min-w-full divide-y divide-slate-200">
-            <thead className="sticky top-0 bg-slate-50">
-              <tr>
-                <th className="th">Fecha</th>
-                <th className="th">Empleado</th>
-                <th className="th">Sucursal</th>
-                <th className="th">Horario</th>
-                <th className="th">Entrada</th>
-                <th className="th">Salida alm.</th>
-                <th className="th">Regreso</th>
-                <th className="th">Salida final</th>
-                <th className="th">Alm. tomado</th>
-                <th className="th">Exceso alm.</th>
-                <th className="th">Atraso</th>
-                <th className="th">Horas trab.</th>
-                <th className="th">Estado</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {report.rows.map((r) => (
-                <Row key={`${r.employeeId}-${r.date}`} r={r} branch={report.branchName.get(r.branchId) ?? "—"} />
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <AttendanceTable rows={report.rows} branchNames={Object.fromEntries(report.branchName)} />
       )}
       <p className="mt-3 text-xs text-slate-500">
         Filas en <span className="font-semibold text-red-700">rojo</span>: atraso o exceso de almuerzo. En{" "}
-        <span className="font-semibold text-amber-700">amarillo</span>: marcaciones incompletas. Horas en hora de Ecuador.
+        <span className="font-semibold text-amber-700">amarillo</span>: marcaciones incompletas. En{" "}
+        <span className="font-semibold text-sky-700">celeste</span>: permiso todo el día. Toca una fila para ver sus fotos.
+        Horas en hora de Ecuador.
       </p>
     </>
-  );
-}
-
-function Row({ r, branch }: { r: ReportRow; branch: string }) {
-  const incomplete = r.status === "incompleto" || r.status === "sin_marcaciones";
-  const rowClass = r.flagged
-    ? "bg-red-50 hover:bg-red-100/70"
-    : incomplete
-      ? "bg-amber-50 hover:bg-amber-100/70"
-      : "hover:bg-slate-50";
-  const detail = `/dashboard/asistencia/${r.employeeId}/${r.date}`;
-  return (
-    <tr className={rowClass}>
-      <td className="td text-slate-600">{formatDateLabel(r.date)}</td>
-      <td className="td font-medium">
-        <Link href={detail} className="hover:text-brand-700 hover:underline">{r.employeeName}</Link>
-      </td>
-      <td className="td">{branch}</td>
-      <td className="td font-mono text-slate-500">{r.entryTime}</td>
-      <td className="td font-mono">{formatTime(r.entrada)}</td>
-      <td className="td font-mono">{formatTime(r.salidaAlmuerzo)}</td>
-      <td className="td font-mono">{formatTime(r.regresoAlmuerzo)}</td>
-      <td className="td font-mono">{formatTime(r.salidaFinal)}</td>
-      <td className="td">
-        {r.lunchMinutes === null ? "—" : formatMinutes(r.lunchMinutes)}
-        {r.lunchOngoing && <span className="ml-1 text-xs text-slate-500">(en curso)</span>}
-      </td>
-      <td className="td">
-        {r.lunchExcessMinutes > 0 ? (
-          <span className="rounded bg-red-600 px-2 py-0.5 text-xs font-bold text-white">+{r.lunchExcessMinutes} min</span>
-        ) : (
-          <span className="text-slate-400">0</span>
-        )}
-      </td>
-      <td className="td">
-        {r.lateMinutes > 0 ? (
-          <span className="rounded bg-red-600 px-2 py-0.5 text-xs font-bold text-white">+{r.lateMinutes} min</span>
-        ) : (
-          <span className="text-slate-400">0</span>
-        )}
-      </td>
-      <td className="td font-medium">{r.workedMinutes === null ? "—" : formatMinutes(r.workedMinutes)}</td>
-      <td className="td">
-        <Badge tone={r.status === "completo" ? "green" : r.status === "en_curso" ? "blue" : "yellow"}>
-          {STATUS_LABEL[r.status]}
-        </Badge>
-      </td>
-    </tr>
   );
 }
 

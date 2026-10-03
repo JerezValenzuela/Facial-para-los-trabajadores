@@ -6,6 +6,7 @@ import { uuid } from "@/lib/validation";
 import { BIOMETRIC_LABEL, biometricStatus, embeddedCount } from "@/lib/employees";
 import { CONSENT_PARAGRAPHS, CONSENT_TITLE, CONSENT_VERSION } from "@/lib/consent";
 import { formatDateTime } from "@/lib/time";
+import { signedEvidenceUrls } from "@/lib/evidence";
 import { Badge, Notice, PageHeader } from "@/components/ui";
 import { IconCamera } from "@/components/icons";
 import { EmployeeForm } from "../employee-form";
@@ -19,15 +20,33 @@ export default async function EmployeeDetailPage(props: PageProps<"/dashboard/em
   if (!uuid.safeParse(id).success) notFound();
 
   const { supabase } = await requireAdminSession();
-  const [{ data: e }, { data: branches }] = await Promise.all([
+  const [{ data: e }, { data: branches }, { data: lastPhoto }] = await Promise.all([
     supabase
       .from("employees")
       .select("*, face_templates(count)")
       .eq("id", id)
       .maybeSingle(),
     supabase.from("branches").select("id, name").order("name"),
+    // Foto del empleado = la última miniatura que le tomó el kiosco al marcar
+    // (no se guardan fotos del enrolamiento, solo vectores).
+    supabase
+      .from("attendance_events")
+      .select("evidence_path, occurred_at")
+      .eq("employee_id", id)
+      .not("evidence_path", "is", null)
+      .order("occurred_at", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
   ]);
   if (!e) notFound();
+  const photoUrl = lastPhoto?.evidence_path
+    ? (await signedEvidenceUrls([lastPhoto.evidence_path]))[lastPhoto.evidence_path] ?? null
+    : null;
+  const initials = e.full_name
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((w: string) => w[0]?.toUpperCase() ?? "")
+    .join("");
 
   const templates = embeddedCount(e.face_templates);
   const status = biometricStatus({ ...e, templates });
@@ -36,6 +55,25 @@ export default async function EmployeeDetailPage(props: PageProps<"/dashboard/em
   return (
     <div className="mx-auto max-w-4xl">
       <Link href="/dashboard/empleados" className="text-sm text-slate-500 hover:text-slate-700">← Empleados</Link>
+      <div className="mt-3 mb-2 flex items-center gap-4">
+        {photoUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={photoUrl}
+            alt={`Foto de ${e.full_name}`}
+            className="h-28 w-28 rounded-2xl border-4 border-white object-cover shadow-md"
+          />
+        ) : (
+          <div className="flex h-28 w-28 items-center justify-center rounded-2xl bg-slate-200 text-3xl font-bold text-slate-500 shadow-inner">
+            {initials}
+          </div>
+        )}
+        <p className="text-xs text-slate-500">
+          {lastPhoto?.occurred_at
+            ? `Última foto tomada por el kiosco: ${formatDateTime(lastPhoto.occurred_at)}`
+            : "Aún sin foto: aparecerá después de su primera marcación en el kiosco."}
+        </p>
+      </div>
       <PageHeader
         title={e.full_name}
         description={

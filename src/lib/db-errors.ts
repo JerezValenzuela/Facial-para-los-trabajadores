@@ -17,6 +17,7 @@ const KNOWN: Record<string, string> = {
   TICKET_USADO: "Esta verificación ya fue utilizada.",
   TICKET_EXPIRADO: "La verificación caducó. Vuelve a intentarlo.",
   TICKET_IP: "La verificación no corresponde a este equipo.",
+  PERMISO_YA_REGISTRADO: "Ya registraste un permiso hoy. Si necesitas cambiarlo, avisa al administrador.",
 };
 
 export type PgLikeError = { code?: string; message?: string; details?: string | null } | null | undefined;

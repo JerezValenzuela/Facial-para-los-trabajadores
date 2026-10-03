@@ -31,6 +31,8 @@ export const identifyBodySchema = z.object({
   frames: z.array(frameSchema).min(1).max(LIVENESS.maxFrames),
   descriptors: z.array(descriptorSchema).min(2).max(3),
   thumbnail: z.string().max(90_000).optional(),
+  /** Foto completa de la escena (para verificar que la marcación fue en el local). */
+  scene: z.string().max(135_000).optional(),
   device: deviceSchema,
   branchCode: z.string().regex(/^[a-z0-9-]{2,32}$/).optional(),
 });
@@ -43,6 +45,21 @@ export const abortBodySchema = z.object({
   device: deviceSchema,
   branchCode: z.string().regex(/^[a-z0-9-]{2,32}$/).optional(),
 });
+
+export const permissionBodySchema = z
+  .object({
+    ticket: z.uuid(),
+    kind: z.enum(["dia_completo", "horas"]),
+    /** Horas de permiso (múltiplos de media hora). */
+    hours: z.number().min(0.5).max(12).multipleOf(0.5).optional(),
+    /** Hora de inicio del permiso ese día, HH:MM. */
+    startTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).optional(),
+    device: deviceSchema,
+    branchCode: z.string().regex(/^[a-z0-9-]{2,32}$/).optional(),
+  })
+  .refine((b) => b.kind === "dia_completo" || (b.hours !== undefined && b.startTime !== undefined), {
+    message: "Para un permiso por horas se necesitan las horas y la hora de inicio.",
+  });
 
 export const markBodySchema = z.object({
   ticket: z.uuid(),

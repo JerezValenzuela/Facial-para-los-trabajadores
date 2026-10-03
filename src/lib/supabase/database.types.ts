@@ -114,6 +114,7 @@ export type Database = {
           ip: unknown
           match_distance: number | null
           occurred_at: string
+          scene_path: string | null
           user_agent: string | null
           work_date: string
         }
@@ -128,6 +129,7 @@ export type Database = {
           ip?: unknown
           match_distance?: number | null
           occurred_at?: string
+          scene_path?: string | null
           user_agent?: string | null
           work_date: string
         }
@@ -142,6 +144,7 @@ export type Database = {
           ip?: unknown
           match_distance?: number | null
           occurred_at?: string
+          scene_path?: string | null
           user_agent?: string | null
           work_date?: string
         }
@@ -418,6 +421,7 @@ export type Database = {
           ip: unknown
           marked_at: string | null
           match_distance: number | null
+          scene_path: string | null
           steps: string[]
           user_agent: string | null
         }
@@ -433,6 +437,7 @@ export type Database = {
           ip: unknown
           marked_at?: string | null
           match_distance?: number | null
+          scene_path?: string | null
           steps: string[]
           user_agent?: string | null
         }
@@ -448,6 +453,7 @@ export type Database = {
           ip?: unknown
           marked_at?: string | null
           match_distance?: number | null
+          scene_path?: string | null
           steps?: string[]
           user_agent?: string | null
         }
@@ -461,6 +467,66 @@ export type Database = {
           },
           {
             foreignKeyName: "kiosk_challenges_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      permissions: {
+        Row: {
+          branch_id: string | null
+          challenge_id: string | null
+          created_at: string
+          employee_id: string
+          evidence_path: string | null
+          hours: number | null
+          id: string
+          ip: unknown
+          kind: Database["public"]["Enums"]["permission_kind"]
+          scene_path: string | null
+          start_time: string | null
+          work_date: string
+        }
+        Insert: {
+          branch_id?: string | null
+          challenge_id?: string | null
+          created_at?: string
+          employee_id: string
+          evidence_path?: string | null
+          hours?: number | null
+          id?: string
+          ip?: unknown
+          kind: Database["public"]["Enums"]["permission_kind"]
+          scene_path?: string | null
+          start_time?: string | null
+          work_date: string
+        }
+        Update: {
+          branch_id?: string | null
+          challenge_id?: string | null
+          created_at?: string
+          employee_id?: string
+          evidence_path?: string | null
+          hours?: number | null
+          id?: string
+          ip?: unknown
+          kind?: Database["public"]["Enums"]["permission_kind"]
+          scene_path?: string | null
+          start_time?: string | null
+          work_date?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "permissions_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "permissions_employee_id_fkey"
             columns: ["employee_id"]
             isOneToOne: false
             referencedRelation: "employees"
@@ -653,6 +719,25 @@ export type Database = {
           work_date: string
         }[]
       }
+      kiosk_register_permission: {
+        Args: {
+          p_challenge_id: string
+          p_hours: number
+          p_ip: unknown
+          p_kind: Database["public"]["Enums"]["permission_kind"]
+          p_start: string
+          p_ticket_ttl_seconds?: number
+        }
+        Returns: {
+          created_at: string
+          employee_id: string
+          hours: number
+          kind: Database["public"]["Enums"]["permission_kind"]
+          permission_id: string
+          start_time: string
+          work_date: string
+        }[]
+      }
       kiosk_resolve_branch: { Args: { p_ip: unknown }; Returns: string }
       next_attendance_event: {
         Args: { p_last: Database["public"]["Enums"]["attendance_event_type"] }
@@ -690,6 +775,7 @@ export type Database = {
         | "empleado_inactivo"
         | "rate_limit"
         | "datos_invalidos"
+      permission_kind: "dia_completo" | "horas"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -843,6 +929,7 @@ export const Constants = {
         "rate_limit",
         "datos_invalidos",
       ],
+      permission_kind: ["dia_completo", "horas"],
     },
   },
 } as const

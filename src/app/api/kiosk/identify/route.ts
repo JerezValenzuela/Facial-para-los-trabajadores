@@ -13,7 +13,7 @@ import {
 import { kioskOptions } from "@/lib/attendance/events";
 import { getSettings } from "@/lib/settings";
 import { supabaseAdmin } from "@/lib/supabase/admin";
-import { decodeJpegDataUrl, uploadEvidence } from "@/lib/evidence";
+import { decodeJpegDataUrl, SCENE_MAX_BYTES, uploadEvidence } from "@/lib/evidence";
 import { todayInTz } from "@/lib/time";
 import { logError } from "@/lib/log";
 
@@ -27,7 +27,7 @@ import { logError } from "@/lib/log";
  *  5. Devuelve el siguiente evento válido y un ticket para confirmar.
  */
 export async function POST(req: Request) {
-  const raw = await readJsonBody(req, 200_000);
+  const raw = await readJsonBody(req, 350_000);
   const parsed = identifyBodySchema.safeParse(raw);
   const g = await kioskGuard(req, {
     route: "identify",
@@ -42,7 +42,7 @@ export async function POST(req: Request) {
     await logFailedAttempt({ reason: "datos_invalidos", ip: ctx.ip, userAgent: ctx.userAgent, branchId: ctx.branchId });
     return kioskError(400, "datos_invalidos", "Datos inválidos. Intenta de nuevo.");
   }
-  const { challengeId, frames, descriptors, thumbnail } = parsed.data;
+  const { challengeId, frames, descriptors, thumbnail, scene } = parsed.data;
   const db = supabaseAdmin();
   const settings = await getSettings();
   const base = { ip: ctx.ip, userAgent: ctx.userAgent, branchId: ctx.branchId };
@@ -159,11 +159,16 @@ export async function POST(req: Request) {
     });
   }
 
-  // Evidencia (miniatura) si está habilitada
+  // Evidencia si está habilitada: miniatura del rostro + foto completa de la escena.
   let evidencePath: string | null = null;
+  let scenePath: string | null = null;
   if (settings.evidence_enabled) {
-    const jpeg = decodeJpegDataUrl(thumbnail);
-    if (jpeg) evidencePath = await uploadEvidence("eventos", todayInTz(), jpeg);
+    const face = decodeJpegDataUrl(thumbnail);
+    const sceneJpeg = decodeJpegDataUrl(scene, SCENE_MAX_BYTES);
+    [evidencePath, scenePath] = await Promise.all([
+      face ? uploadEvidence("eventos", todayInTz(), face) : Promise.resolve(null),
+      sceneJpeg ? uploadEvidence("eventos", todayInTz(), sceneJpeg) : Promise.resolve(null),
+    ]);
   }
 
   const { error: upErr } = await db
@@ -173,6 +178,7 @@ export async function POST(req: Request) {
       match_distance: match.distance,
       identified_at: new Date().toISOString(),
       evidence_path: evidencePath,
+      scene_path: scenePath,
       branch_id: ctx.branchId ?? ch.branch_id,
     })
     .eq("id", ch.id);

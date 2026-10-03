@@ -48,7 +48,7 @@ describe("exportación a Excel", () => {
       employees: [{ id: "e1", full_name: "Ana Pérez", branch_id: "b1", active: true }],
       branchName: new Map([["b1", "Pucará"]]),
       settings: { entry_tolerance_minutes: 7, lunch_allowed_minutes: 60, work_days: [1, 2, 3, 4, 5, 6] },
-      totals: { rows: rows.length, late: 1, lunchExcess: 1, incomplete: 1 },
+      totals: { rows: rows.length, late: 1, lunchExcess: 1, incomplete: 1, permissions: 0 },
     };
     const jpeg = Buffer.from(
       "/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////wgALCAABAAEBAREA/8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQABPxA=",
@@ -70,11 +70,12 @@ describe("exportación a Excel", () => {
     // Fila 5 = 2026-10-02 (incompleto, amarilla); fila 6 = 2026-10-01 (atraso + exceso, roja)
     const yellow = ws.getRow(5);
     const red = ws.getRow(6);
-    expect(ws.getRow(4).getCell(16).value).toBe("Estado");
-    expect(ws.getRow(4).getCell(17).value).toBe("Foto");
+    expect(ws.getRow(4).getCell(16).value).toBe("Permiso");
+    expect(ws.getRow(4).getCell(17).value).toBe("Estado");
+    expect(ws.getRow(4).getCell(18).value).toBe("Foto");
     expect(ws.getRow(4).getCell(11).value).toBe("Almuerzo permitido");
     expect(ws.getRow(4).getCell(12).value).toBe("Almuerzo tomado");
-    expect(yellow.getCell(16).value).toBe("Incompleto");
+    expect(yellow.getCell(17).value).toBe("Incompleto");
     expect((yellow.getCell(1).fill as ExcelJS.FillPattern).fgColor?.argb).toBe("FFFEF3C7");
     expect((red.getCell(1).fill as ExcelJS.FillPattern).fgColor?.argb).toBe("FFFDE2E2");
     expect(red.getCell(13).value).toBe(10); // exceso de almuerzo
@@ -91,7 +92,7 @@ describe("exportación a Excel", () => {
     // Foto incrustada al lado del Estado, en la fila roja (6); la amarilla no tiene foto.
     const images = ws.getImages();
     expect(images).toHaveLength(1);
-    expect(Math.floor(images[0].range.tl.nativeCol)).toBe(16);
+    expect(Math.floor(images[0].range.tl.nativeCol)).toBe(17);
     expect(Math.floor(images[0].range.tl.nativeRow)).toBe(5);
     expect(red.height).toBeGreaterThan(40);
 
