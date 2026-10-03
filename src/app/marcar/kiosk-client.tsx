@@ -1,0 +1,674 @@
+"use client";
+
+import { useEffect, useEffectEvent, useRef, useState } from "react";
+import {
+  captureThumbnail,
+  computeDescriptor,
+  detectFaces,
+  loadFaceApi,
+  openCamera,
+  stopCamera,
+  type FaceSnapshot,
+} from "@/lib/face/browser";
+import {
+  findStep,
+  LIVENESS,
+  STEP_LABEL,
+  verifyLiveness,
+  type LivenessFrame,
+  type LivenessStep,
+} from "@/lib/face/liveness";
+import { detectMobile, type DeviceSignals } from "@/lib/security/device";
+import type { AttendanceEventType } from "@/lib/attendance/events";
+
+// ---------------------------------------------------------------------------
+// Tipos y constantes
+// ---------------------------------------------------------------------------
+type Phase =
+  | { name: "boot"; note: string }
+  | { name: "blocked"; title: string; message: string }
+  | { name: "idle" }
+  | { name: "preparing" }
+  | { name: "challenge"; steps: LivenessStep[]; stepIndex: number }
+  | { name: "final" }
+  | { name: "verifying" }
+  | {
+      name: "identified";
+      ticket: string;
+      firstName: string;
+      nextEvent: AttendanceEventType;
+      nextEventLabel: string;
+    }
+  | { name: "marking"; firstName: string; label: string }
+  | { name: "success"; firstName: string; label: string; time: string; info: string | null; warn: boolean }
+  | { name: "notice"; tone: "error" | "info"; title: string; message: string };
+
+type ChallengeState = {
+  id: string;
+  steps: LivenessStep[];
+  frames: LivenessFrame[];
+  t0: number;
+  stepIndex: number;
+  searchFrom: number;
+  startDescriptor: number[];
+  frontalCount: number;
+  finishing: boolean;
+};
+
+const CHALLENGE_TIMEOUT_MS = 20_000;
+const IDENTIFIED_TIMEOUT_MS = 60_000;
+const SUCCESS_DISPLAY_MS = 6_000;
+const NOTICE_DISPLAY_MS = 5_000;
+const PRESENCE_FRAMES = 6;
+
+type ApiResult = { ok: boolean; status: number; data: Record<string, unknown> };
+
+async function api(path: string, body: unknown): Promise<ApiResult> {
+  try {
+    const res = await fetch(path, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+      cache: "no-store",
+    });
+    const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+    return { ok: res.ok && data.ok === true, status: res.status, data };
+  } catch {
+    return { ok: false, status: 0, data: { message: "Sin conexión con el servidor. Revisa el internet del local." } };
+  }
+}
+
+function deviceSignals(): DeviceSignals {
+  return {
+    maxTouchPoints: navigator.maxTouchPoints ?? 0,
+    screenWidth: Math.round(window.screen.width),
+    screenHeight: Math.round(window.screen.height),
+    coarsePointer: window.matchMedia("(pointer: coarse)").matches,
+    canHover: window.matchMedia("(hover: hover)").matches,
+  };
+}
+
+function beep(ok: boolean) {
+  try {
+    const Ctx = window.AudioContext ?? (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+    const ctx = new Ctx();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.frequency.value = ok ? 880 : 220;
+    gain.gain.setValueAtTime(0.15, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + (ok ? 0.25 : 0.45));
+    osc.connect(gain).connect(ctx.destination);
+    osc.start();
+    osc.stop(ctx.currentTime + (ok ? 0.25 : 0.45));
+    osc.onended = () => void ctx.close();
+  } catch {
+    // sin audio: no es crítico
+  }
+}
+
+const clockFmt = new Intl.DateTimeFormat("es-EC", {
+  timeZone: "America/Guayaquil",
+  hour: "2-digit",
+  minute: "2-digit",
+  second: "2-digit",
+  hourCycle: "h23",
+});
+const dateFmt = new Intl.DateTimeFormat("es-EC", {
+  timeZone: "America/Guayaquil",
+  weekday: "long",
+  day: "numeric",
+  month: "long",
+});
+
+// ---------------------------------------------------------------------------
+// Componente
+// ---------------------------------------------------------------------------
+export function KioskClient({ branchCode }: { branchCode?: string }) {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const meterRef = useRef<HTMLDivElement>(null);
+  const faceapiRef = useRef<Awaited<ReturnType<typeof loadFaceApi>> | null>(null);
+  const challengeRef = useRef<ChallengeState | null>(null);
+  const presenceRef = useRef(0);
+  const restUntilRef = useRef(0);
+  const lastSeenRef = useRef(0);
+  const deviceRef = useRef<DeviceSignals>({});
+
+  const [phase, setPhase] = useState<Phase>({ name: "boot", note: "Iniciando…" });
+  const [hint, setHint] = useState("Acércate a la cámara para marcar");
+  const [branchName, setBranchName] = useState<string | null>(null);
+  const [devMode, setDevMode] = useState(false);
+  const [clock, setClock] = useState<{ time: string; date: string }>({ time: "--:--:--", date: "" });
+  const [offsetMs, setOffsetMs] = useState(0);
+
+  // ---- Reloj sincronizado con la hora oficial del servidor ----
+  useEffect(() => {
+    let alive = true;
+    fetch("/api/kiosk/time", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((d: { now?: string }) => {
+        if (alive && d.now) setOffsetMs(new Date(d.now).getTime() - Date.now());
+      })
+      .catch(() => undefined);
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    const tick = () => {
+      const now = new Date(Date.now() + offsetMs);
+      setClock({ time: clockFmt.format(now), date: dateFmt.format(now) });
+    };
+    tick();
+    const id = window.setInterval(tick, 1000);
+    return () => window.clearInterval(id);
+  }, [offsetMs]);
+
+  // ---- Volver solo a la pantalla de espera ----
+  useEffect(() => {
+    let ms = 0;
+    if (phase.name === "success") ms = SUCCESS_DISPLAY_MS;
+    else if (phase.name === "notice") ms = NOTICE_DISPLAY_MS;
+    else if (phase.name === "identified") ms = IDENTIFIED_TIMEOUT_MS;
+    else if (phase.name === "challenge" || phase.name === "final") ms = CHALLENGE_TIMEOUT_MS;
+    if (!ms) return;
+    const id = window.setTimeout(() => {
+      if (phase.name === "challenge" || phase.name === "final") {
+        challengeRef.current = null;
+        setPhase({
+          name: "notice",
+          tone: "error",
+          title: "Tiempo agotado",
+          message: "No se completó la verificación. Vuelve a intentarlo siguiendo las instrucciones.",
+        });
+        return;
+      }
+      restUntilRef.current = performance.now() + 3000;
+      setPhase({ name: "idle" });
+    }, ms);
+    return () => window.clearTimeout(id);
+  }, [phase]);
+
+  // ---- Lógica por cuadro de video ----
+  async function startChallenge() {
+    const faceapi = faceapiRef.current;
+    const video = videoRef.current;
+    if (!faceapi || !video) return;
+    setPhase({ name: "preparing" });
+    const r = await api("/api/kiosk/challenge", { device: deviceRef.current, branchCode });
+    if (!r.ok) return handleError(r);
+    const start = await computeDescriptor(faceapi, video);
+    if (!start) {
+      setPhase({
+        name: "notice",
+        tone: "error",
+        title: "Solo una persona",
+        message: "Colócate solo tú frente a la cámara, de frente, y vuelve a intentarlo.",
+      });
+      return;
+    }
+    const steps = (r.data.steps as LivenessStep[]) ?? [];
+    challengeRef.current = {
+      id: String(r.data.challengeId),
+      steps,
+      frames: [],
+      t0: performance.now(),
+      stepIndex: 0,
+      searchFrom: 0,
+      startDescriptor: start.descriptor,
+      frontalCount: 0,
+      finishing: false,
+    };
+    setPhase({ name: "challenge", steps, stepIndex: 0 });
+  }
+
+  async function finishChallenge(snap: FaceSnapshot) {
+    const ch = challengeRef.current;
+    const faceapi = faceapiRef.current;
+    const video = videoRef.current;
+    if (!ch || !faceapi || !video || ch.finishing) return;
+    ch.finishing = true;
+    const end = await computeDescriptor(faceapi, video);
+    if (!end) {
+      ch.finishing = false;
+      ch.frontalCount = 0;
+      return;
+    }
+    const thumbnail = captureThumbnail(video, snap.box);
+    setPhase({ name: "verifying" });
+    const r = await api("/api/kiosk/identify", {
+      challengeId: ch.id,
+      frames: ch.frames,
+      descriptors: [ch.startDescriptor, end.descriptor],
+      thumbnail: thumbnail ?? undefined,
+      device: deviceRef.current,
+      branchCode,
+    });
+    challengeRef.current = null;
+    if (!r.ok) return handleError(r);
+    const d = r.data;
+    const employee = (d.employee as { firstName: string }) ?? { firstName: "" };
+    if (d.status === "identified") {
+      setPhase({
+        name: "identified",
+        ticket: String(d.ticket),
+        firstName: employee.firstName,
+        nextEvent: d.nextEvent as AttendanceEventType,
+        nextEventLabel: String(d.nextEventLabel),
+      });
+    } else if (d.status === "cooldown") {
+      setPhase({
+        name: "notice",
+        tone: "info",
+        title: `Hola, ${employee.firstName}`,
+        message: `Acabas de marcar. Espera ${Number(d.waitSeconds) || 60} segundos antes de la siguiente marcación.`,
+      });
+    } else {
+      setPhase({
+        name: "notice",
+        tone: "info",
+        title: `Hola, ${employee.firstName}`,
+        message: String(d.message ?? "Ya registraste todas tus marcaciones de hoy. ¡Buen descanso!"),
+      });
+    }
+  }
+
+  function handleError(r: ApiResult) {
+    challengeRef.current = null;
+    const code = String(r.data.code ?? "");
+    const message = String(r.data.message ?? "Ocurrió un error. Intenta de nuevo.");
+    beep(false);
+    if (code === "ip_no_permitida") {
+      setPhase({
+        name: "blocked",
+        title: "Equipo no autorizado",
+        message: `${message} IP detectada: ${String(r.data.ip ?? "desconocida")}. El administrador debe registrarla en Sucursales e IPs.`,
+      });
+    } else if (code === "movil") {
+      setPhase({ name: "blocked", title: "Dispositivo no permitido", message });
+    } else {
+      setPhase({ name: "notice", tone: "error", title: "No se pudo completar", message });
+    }
+  }
+
+  async function confirmMark() {
+    if (phase.name !== "identified") return;
+    const { ticket, nextEvent, nextEventLabel, firstName } = phase;
+    setPhase({ name: "marking", firstName, label: nextEventLabel });
+    const r = await api("/api/kiosk/mark", { ticket, eventType: nextEvent, device: deviceRef.current, branchCode });
+    if (!r.ok) return handleError(r);
+    beep(true);
+    setPhase({
+      name: "success",
+      firstName: String(r.data.firstName ?? firstName),
+      label: String(r.data.eventLabel ?? nextEventLabel),
+      time: String(r.data.time ?? ""),
+      info: (r.data.info as string | null) ?? null,
+      warn: Boolean(r.data.warn),
+    });
+  }
+
+  function cancelIdentified() {
+    restUntilRef.current = performance.now() + 3000;
+    setPhase({ name: "idle" });
+  }
+
+  const onFrame = useEffectEvent((snap: FaceSnapshot | null) => {
+    const now = performance.now();
+    if (snap && snap.faces >= 1) lastSeenRef.current = now;
+
+    // Indicador de giro (espejo: tu izquierda se ve a la izquierda).
+    if (meterRef.current) {
+      const yaw = snap?.metrics.yaw ?? 0;
+      const pos = Math.max(4, Math.min(96, 50 - yaw * 120));
+      meterRef.current.style.left = `${pos}%`;
+      meterRef.current.style.opacity = snap ? "1" : "0.25";
+    }
+
+    if (phase.name === "idle") {
+      if (now < restUntilRef.current) return;
+      if (!snap) {
+        presenceRef.current = 0;
+        setHint("Acércate a la cámara para marcar");
+        return;
+      }
+      if (snap.faces > 1) {
+        presenceRef.current = 0;
+        setHint("Solo una persona a la vez frente a la cámara");
+        return;
+      }
+      if (snap.metrics.size < 0.15) {
+        presenceRef.current = 0;
+        setHint("Acércate un poco más");
+        return;
+      }
+      if (Math.abs(snap.metrics.yaw) > 0.12 || snap.score < 0.6) {
+        presenceRef.current = 0;
+        setHint("Mira de frente a la cámara");
+        return;
+      }
+      presenceRef.current += 1;
+      setHint("Quédate quieto un momento…");
+      if (presenceRef.current >= PRESENCE_FRAMES) {
+        presenceRef.current = 0;
+        void startChallenge();
+      }
+      return;
+    }
+
+    if (phase.name === "identified" && now - lastSeenRef.current > 5000) {
+      // El empleado se fue sin confirmar: no se deja la marcación abierta.
+      cancelIdentified();
+      return;
+    }
+
+    const ch = challengeRef.current;
+    if (!ch || (phase.name !== "challenge" && phase.name !== "final")) return;
+    if (!snap) return;
+    if (snap.faces > 1) {
+      challengeRef.current = null;
+      setPhase({
+        name: "notice",
+        tone: "error",
+        title: "Solo una persona",
+        message: "Se detectó más de un rostro durante la verificación. Vuelve a intentarlo solo.",
+      });
+      return;
+    }
+
+    const t = Math.round(now - ch.t0);
+    const last = ch.frames[ch.frames.length - 1];
+    if (ch.frames.length < LIVENESS.maxFrames - 5 && (!last || t - last.t >= 30)) {
+      ch.frames.push({
+        t,
+        ear: Number(snap.metrics.ear.toFixed(4)),
+        yaw: Number(snap.metrics.yaw.toFixed(4)),
+        size: Number(snap.metrics.size.toFixed(4)),
+      });
+    }
+
+    if (phase.name === "challenge") {
+      let advanced = false;
+      while (ch.stepIndex < ch.steps.length) {
+        const at = findStep(ch.steps[ch.stepIndex], ch.frames, ch.searchFrom);
+        if (at < 0) break;
+        ch.stepIndex += 1;
+        ch.searchFrom = at + 1;
+        advanced = true;
+      }
+      if (ch.stepIndex >= ch.steps.length) {
+        // Mismo chequeo que hará el servidor; si aún no pasa, se siguen tomando cuadros.
+        if (verifyLiveness(ch.steps, ch.frames).ok) setPhase({ name: "final" });
+      } else if (advanced) {
+        setPhase({ name: "challenge", steps: ch.steps, stepIndex: ch.stepIndex });
+      }
+      return;
+    }
+
+    // Fase final: mirar de frente para la captura final.
+    const yawBase = ch.frames.length ? ch.frames[0].yaw : 0;
+    if (Math.abs(snap.metrics.yaw - yawBase) < 0.1) {
+      ch.frontalCount += 1;
+      if (ch.frontalCount >= 3) void finishChallenge(snap);
+    } else {
+      ch.frontalCount = 0;
+    }
+  });
+
+  // ---- Arranque: dispositivo → autorización del equipo → modelos → cámara ----
+  useEffect(() => {
+    let cancelled = false;
+    let raf = 0;
+    let stream: MediaStream | null = null;
+    let busy = false;
+    let wakeLock: { release: () => Promise<void> } | null = null;
+
+    (async () => {
+      const signals = deviceSignals();
+      deviceRef.current = signals;
+      const verdict = detectMobile(navigator.userAgent, null, signals);
+      if (verdict.mobile) {
+        setPhase({
+          name: "blocked",
+          title: "Dispositivo no permitido",
+          message: "La marcación solo está permitida desde las computadoras del local, no desde celulares ni tablets.",
+        });
+        return;
+      }
+
+      setPhase({ name: "boot", note: "Verificando este equipo…" });
+      const status = await api("/api/kiosk/status", { device: signals, branchCode });
+      if (cancelled) return;
+      if (!status.ok) {
+        const code = String(status.data.code ?? "");
+        if (code === "ip_no_permitida" || code === "movil") return handleError(status);
+        setPhase({
+          name: "blocked",
+          title: "Sin conexión con el servidor",
+          message: `${String(status.data.message ?? "No se pudo verificar este equipo.")} Reintentando en 20 segundos…`,
+        });
+        window.setTimeout(() => window.location.reload(), 20_000);
+        return;
+      }
+      setBranchName((status.data.branchName as string | null) ?? null);
+      setDevMode(Boolean(status.data.devMode));
+
+      try {
+        setPhase({ name: "boot", note: "Cargando reconocimiento facial…" });
+        const faceapi = await loadFaceApi();
+        if (cancelled || !videoRef.current) return;
+        faceapiRef.current = faceapi;
+        setPhase({ name: "boot", note: "Abriendo la cámara…" });
+        stream = await openCamera(videoRef.current);
+        if (cancelled) return stopCamera(stream);
+        try {
+          const nav = navigator as Navigator & { wakeLock?: { request(t: "screen"): Promise<{ release: () => Promise<void> }> } };
+          wakeLock = (await nav.wakeLock?.request("screen")) ?? null;
+        } catch {
+          // la pantalla puede apagarse; no es crítico
+        }
+        setPhase({ name: "idle" });
+
+        const loop = async () => {
+          if (cancelled) return;
+          const video = videoRef.current;
+          if (!busy && video && video.readyState >= 2) {
+            busy = true;
+            try {
+              onFrame(await detectFaces(faceapi, video));
+            } catch {
+              // cuadro perdido
+            }
+            busy = false;
+          }
+          raf = requestAnimationFrame(loop);
+        };
+        raf = requestAnimationFrame(loop);
+      } catch (e) {
+        if (cancelled) return;
+        setPhase({
+          name: "blocked",
+          title: "No se pudo iniciar",
+          message: e instanceof Error ? e.message : "Error al iniciar la cámara.",
+        });
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      cancelAnimationFrame(raf);
+      stopCamera(stream);
+      void wakeLock?.release().catch(() => undefined);
+    };
+    // Se ejecuta una sola vez al montar el kiosco.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // ---------------------------------------------------------------------------
+  // Render
+  // ---------------------------------------------------------------------------
+  const showCamera = !["blocked"].includes(phase.name);
+  const ringColor =
+    phase.name === "challenge" || phase.name === "final"
+      ? "ring-sky-400"
+      : phase.name === "success"
+        ? "ring-emerald-400"
+        : phase.name === "notice" && phase.tone === "error"
+          ? "ring-red-500"
+          : "ring-white/15";
+
+  return (
+    <main className="flex min-h-screen flex-1 flex-col bg-slate-950 text-white select-none">
+      {/* Barra superior */}
+      <header className="flex items-center justify-between px-6 py-4 sm:px-10">
+        <div className="flex items-center gap-3">
+          <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-brand-600 text-xl font-bold">J</div>
+          <div className="leading-tight">
+            <p className="text-lg font-semibold">JerezCons</p>
+            <p className="text-sm text-slate-400">
+              {branchName ? `Sucursal ${branchName}` : "Control de asistencia"}
+              {devMode && <span className="ml-2 rounded bg-amber-500/20 px-1.5 py-0.5 text-xs text-amber-300">DEV_MODE</span>}
+            </p>
+          </div>
+        </div>
+        <div className="text-right">
+          <p className="font-mono text-3xl font-semibold tabular-nums sm:text-4xl">{clock.time}</p>
+          <p className="text-sm text-slate-400 first-letter:uppercase">{clock.date}</p>
+        </div>
+      </header>
+
+      <div className="flex flex-1 flex-col items-center justify-center gap-6 px-6 pb-8">
+        {phase.name === "blocked" ? (
+          <div className="max-w-xl rounded-2xl border border-red-500/30 bg-red-500/10 p-8 text-center">
+            <p className="text-5xl">⛔</p>
+            <h1 className="mt-4 text-2xl font-semibold">{phase.title}</h1>
+            <p className="mt-3 text-lg text-slate-300">{phase.message}</p>
+          </div>
+        ) : null}
+
+        {/* Cámara */}
+        <div
+          className={`relative aspect-[4/3] w-full max-w-2xl overflow-hidden rounded-3xl bg-slate-900 ring-4 transition-colors ${ringColor} ${
+            showCamera ? "" : "hidden"
+          }`}
+        >
+          <video ref={videoRef} className="absolute inset-0 h-full w-full -scale-x-100 object-cover" muted playsInline />
+          {/* Guía ovalada */}
+          <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+            <div className="h-[72%] w-[46%] rounded-[50%] border-4 border-dashed border-white/25" />
+          </div>
+
+          {/* Indicador de giro de cabeza */}
+          {(phase.name === "challenge" || phase.name === "final") && (
+            <div className="absolute inset-x-10 top-4 h-2 rounded-full bg-white/20">
+              <div ref={meterRef} className="absolute top-1/2 h-5 w-5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-sky-400 shadow" />
+            </div>
+          )}
+
+          {/* Capas de estado sobre el video */}
+          {phase.name === "boot" && <Overlay>{phase.note}</Overlay>}
+          {(phase.name === "preparing" || phase.name === "verifying") && (
+            <Overlay>
+              <Spinner /> {phase.name === "preparing" ? "Preparando verificación…" : "Verificando identidad…"}
+            </Overlay>
+          )}
+          {phase.name === "marking" && (
+            <Overlay>
+              <Spinner /> Registrando {phase.label.toLowerCase()}…
+            </Overlay>
+          )}
+          {phase.name === "success" && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center bg-emerald-600/95 p-6 text-center">
+              <div className="flex h-24 w-24 items-center justify-center rounded-full bg-white text-6xl text-emerald-600">✓</div>
+              <p className="mt-5 text-3xl font-bold">{phase.label} registrada</p>
+              <p className="mt-2 font-mono text-5xl font-bold tabular-nums">{phase.time}</p>
+              <p className="mt-3 text-xl">Gracias, {phase.firstName}</p>
+              {phase.info && (
+                <p className={`mt-4 rounded-xl px-4 py-2 text-lg font-semibold ${phase.warn ? "bg-amber-400 text-amber-950" : "bg-white/20"}`}>
+                  {phase.info}
+                </p>
+              )}
+            </div>
+          )}
+          {phase.name === "notice" && (
+            <div
+              className={`absolute inset-0 flex flex-col items-center justify-center p-8 text-center ${
+                phase.tone === "error" ? "bg-red-700/95" : "bg-sky-700/95"
+              }`}
+            >
+              <p className="text-3xl font-bold">{phase.title}</p>
+              <p className="mt-4 max-w-lg text-xl">{phase.message}</p>
+            </div>
+          )}
+        </div>
+
+        {/* Panel de instrucciones / acciones */}
+        {phase.name === "idle" && <Instruction big>{hint}</Instruction>}
+
+        {phase.name === "challenge" && (
+          <div className="w-full max-w-2xl text-center">
+            <p className="text-sm tracking-wide text-slate-400 uppercase">
+              Prueba de vida · paso {Math.min(phase.stepIndex + 1, phase.steps.length)} de {phase.steps.length}
+            </p>
+            <p className="mt-2 text-4xl font-bold">
+              <StepIcon step={phase.steps[phase.stepIndex]} /> {STEP_LABEL[phase.steps[phase.stepIndex]]}
+            </p>
+            <div className="mt-4 flex justify-center gap-2">
+              {phase.steps.map((s, i) => (
+                <span
+                  key={`${s}-${i}`}
+                  className={`h-2.5 w-16 rounded-full ${i < phase.stepIndex ? "bg-emerald-400" : i === phase.stepIndex ? "bg-sky-400" : "bg-white/20"}`}
+                />
+              ))}
+            </div>
+          </div>
+        )}
+
+        {phase.name === "final" && <Instruction big>Ahora mira de frente a la cámara</Instruction>}
+
+        {phase.name === "identified" && (
+          <div className="flex w-full max-w-2xl flex-col items-center gap-4">
+            <p className="text-3xl font-semibold">Hola, {phase.firstName} 👋</p>
+            <button
+              type="button"
+              onClick={() => void confirmMark()}
+              className="w-full rounded-2xl bg-brand-600 px-8 py-7 text-3xl font-bold shadow-lg shadow-brand-900/40 transition hover:bg-brand-500 focus-visible:outline-4 focus-visible:outline-brand-300 active:scale-[0.99]"
+              autoFocus
+            >
+              Registrar {phase.nextEventLabel.toLowerCase()}
+            </button>
+            <button type="button" onClick={cancelIdentified} className="text-lg text-slate-400 underline-offset-4 hover:text-white hover:underline">
+              No soy {phase.firstName} · cancelar
+            </button>
+          </div>
+        )}
+      </div>
+
+      <footer className="px-6 pb-4 text-center text-xs text-slate-500">
+        La hora registrada es la hora oficial del servidor. Tus datos biométricos se tratan conforme a la LOPDP.
+      </footer>
+    </main>
+  );
+}
+
+function Overlay({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="absolute inset-0 flex items-center justify-center gap-3 bg-slate-950/70 text-xl font-medium">
+      {children}
+    </div>
+  );
+}
+
+function Instruction({ children, big }: { children: React.ReactNode; big?: boolean }) {
+  return <p className={`text-center font-semibold ${big ? "text-3xl" : "text-xl"}`}>{children}</p>;
+}
+
+function Spinner() {
+  return <span className="inline-block h-6 w-6 animate-spin rounded-full border-4 border-white/30 border-t-white" />;
+}
+
+function StepIcon({ step }: { step: LivenessStep | undefined }) {
+  if (step === "turn_left") return <span aria-hidden>⬅️</span>;
+  if (step === "turn_right") return <span aria-hidden>➡️</span>;
+  return <span aria-hidden>👁️</span>;
+}
