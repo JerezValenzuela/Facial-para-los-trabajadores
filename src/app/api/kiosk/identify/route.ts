@@ -7,6 +7,7 @@ import {
   SAME_PERSON_MAX_DISTANCE,
   maxPairwiseDistance,
   meanDescriptor,
+  traceStats,
   verifyLiveness,
 } from "@/lib/face/liveness";
 import { EVENT_LABEL } from "@/lib/attendance/events";
@@ -67,7 +68,12 @@ export async function POST(req: Request) {
   // 2) Liveness (re-verificado aquí; el "ok" del navegador no cuenta)
   const live = verifyLiveness(steps, frames);
   if (!live.ok) {
-    await logFailedAttempt({ ...base, reason: "liveness_fallido", thumbnail, details: { motivo: live.reason, pasos: steps } });
+    await logFailedAttempt({
+      ...base,
+      reason: "liveness_fallido",
+      thumbnail,
+      details: { motivo: live.reason, pasos: steps, ...traceStats(frames) },
+    });
     return kioskError(
       422,
       "liveness",

@@ -237,7 +237,7 @@ Todas se editan en **Dashboard → Configuración** (tabla `settings`):
 | Cooldown entre marcaciones | 60 s | Rechaza marcaciones del mismo empleado antes de ese tiempo |
 | Días laborables | lun–sáb | Un día no laborable sin marcaciones no cuenta como “Incompleto” |
 | Umbral facial | 0.50 | Distancia euclidiana máxima. Menor es más estricto. Si 2 empleados quedan bajo el umbral, se rechaza por ambigüedad |
-| Prueba de vida | fija | Girar la cabeza a la derecha, luego a la izquierda y mirar al centro. Sin parpadeo |
+| Prueba de vida | fija | Girar la cabeza a la derecha, luego a la izquierda y mirar al centro. Sin parpadeo. Funciona aunque la webcam entregue la imagen en espejo. Si un intento se queda sin tiempo, se registra en Intentos fallidos con el giro alcanzado (para diagnóstico) |
 | Evidencia | activada, 90 días | Miniatura de 160×160 en el bucket privado; la limpieza diaria borra las vencidas |
 
 Estados del día: **Completo**, **En curso** (hoy, con marcaciones parciales), **Incompleto** (faltó alguna marcación) e **Incompleto (sin marcaciones)**. Las filas con atraso o exceso van en **rojo**; las incompletas, en **amarillo**. Los minutos se cuentan completos (se truncan los segundos).

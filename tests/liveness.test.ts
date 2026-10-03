@@ -6,6 +6,7 @@ import {
   maxPairwiseDistance,
   meanDescriptor,
   kioskSteps,
+  stepProgress,
   randomSteps,
   verifyLiveness,
   type LivenessFrame,
@@ -68,9 +69,28 @@ describe("verificación de liveness (servidor)", () => {
     expect(r.ok).toBe(false);
   });
 
-  it("rechaza girar hacia el lado contrario al pedido", () => {
-    const r = verifyLiveness(["turn_left"], trace(["turn_right"]));
-    expect(r).toEqual({ ok: false, reason: "paso_no_cumplido:turn_left" });
+  it("exige girar a un lado y LUEGO al otro (un solo giro o dos al mismo lado no bastan)", () => {
+    const steps: LivenessStep[] = ["turn_right", "turn_left"];
+    expect(verifyLiveness(steps, trace(["turn_right"]))).toEqual({ ok: false, reason: "paso_no_cumplido:turn_left" });
+    expect(verifyLiveness(steps, trace(["turn_right", "turn_right"]))).toEqual({
+      ok: false,
+      reason: "paso_no_cumplido:turn_left",
+    });
+  });
+
+  it("funciona con cámaras que entregan la imagen en espejo (giros invertidos en los datos)", () => {
+    const steps: LivenessStep[] = ["turn_right", "turn_left"];
+    const mirrored = trace(["turn_left", "turn_right"]);
+    expect(verifyLiveness(steps, mirrored)).toEqual({ ok: true });
+    expect(stepProgress(steps, mirrored)).toEqual({ done: 2, flip: -1 });
+    expect(stepProgress(steps, trace(steps))).toEqual({ done: 2, flip: 1 });
+  });
+
+  it("no descarta el intento si al girar fuerte los valores se disparan (se recortan)", () => {
+    const t = trace(["turn_right", "turn_left"]);
+    t[12] = { ...t[12], ear: 3.2, yaw: -4 };
+    t[20] = { ...t[20], ear: 1.4 };
+    expect(verifyLiveness(["turn_right", "turn_left"], t)).toEqual({ ok: true });
   });
 
   it("exige el ORDEN de los pasos", () => {
@@ -81,14 +101,14 @@ describe("verificación de liveness (servidor)", () => {
   it("rechaza trazas con tiempos imposibles o valores fuera de rango", () => {
     expect(verifyLiveness(["blink"], trace(["blink"], { dt: 5 }))).toMatchObject({ ok: false, reason: "tiempos_invalidos" });
     const bad = trace(["blink"]);
-    bad[3] = { ...bad[3], ear: 5 };
+    bad[3] = { ...bad[3], ear: Number.NaN };
     expect(verifyLiveness(["blink"], bad)).toMatchObject({ ok: false, reason: "valores_invalidos" });
     expect(verifyLiveness(["blink"], trace(["blink"]).slice(0, 4))).toMatchObject({ ok: false, reason: "pocos_cuadros" });
   });
 
   it("rechaza un salto brusco de tamaño de rostro (cambio de imagen)", () => {
     const t = trace(["blink"]);
-    t[10] = { ...t[10], size: 0.6 };
+    t[10] = { ...t[10], size: 0.7 };
     expect(verifyLiveness(["blink"], t)).toMatchObject({ ok: false, reason: "salto_de_rostro" });
   });
 
@@ -97,8 +117,8 @@ describe("verificación de liveness (servidor)", () => {
     expect(steps).toEqual(["turn_right", "turn_left"]);
     expect(verifyLiveness(steps, trace(steps))).toEqual({ ok: true });
     expect(verifyLiveness(steps, trace(steps, { still: true })).ok).toBe(false);
-    // Hacerlo al revés (izquierda primero) no cumple el orden pedido.
-    expect(verifyLiveness(steps, trace(["turn_left", "turn_right"])).ok).toBe(false);
+    // Girar a un solo lado no basta.
+    expect(verifyLiveness(steps, trace(["turn_right"])).ok).toBe(false);
   });
 
   it("los retos aleatorios no repiten pasos", () => {

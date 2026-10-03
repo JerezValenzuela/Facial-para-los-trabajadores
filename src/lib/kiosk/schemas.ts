@@ -35,6 +35,15 @@ export const identifyBodySchema = z.object({
   branchCode: z.string().regex(/^[a-z0-9-]{2,32}$/).optional(),
 });
 
+export const abortBodySchema = z.object({
+  challengeId: z.uuid(),
+  reason: z.enum(["tiempo_agotado", "sin_mirar_al_centro"]),
+  stepIndex: z.number().int().min(0).max(5),
+  frames: z.array(frameSchema).max(LIVENESS.maxFrames),
+  device: deviceSchema,
+  branchCode: z.string().regex(/^[a-z0-9-]{2,32}$/).optional(),
+});
+
 export const markBodySchema = z.object({
   ticket: z.uuid(),
   eventType: z.enum(EVENT_ORDER as unknown as [string, ...string[]]),

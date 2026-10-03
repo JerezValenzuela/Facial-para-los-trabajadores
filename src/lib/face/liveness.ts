@@ -31,8 +31,8 @@ export const LIVENESS = {
   blinkCloseFactor: 0.75,
   /** Reapertura: EAR vuelve por encima de este factor. */
   blinkOpenFactor: 0.9,
-  /** Giro mínimo (en distancias inter-oculares) respecto a la postura inicial. */
-  turnThreshold: 0.16,
+  /** Giro mínimo (en distancias inter-oculares) respecto a la postura inicial (≈ 12–15°). */
+  turnThreshold: 0.14,
   /** Postura "de frente": |yaw| menor que esto. */
   frontalMaxYaw: 0.1,
   minFrames: 8,
@@ -52,6 +52,18 @@ export function eyeAspectRatio(eye: Pt[]): number {
   return (dist(eye[1], eye[5]) + dist(eye[2], eye[4])) / (2 * horizontal);
 }
 
+const clamp = (v: number, min: number, max: number) => Math.min(max, Math.max(min, v));
+
+/**
+ * Normaliza un cuadro a rangos físicos. Con la cabeza muy girada los puntos de
+ * los ojos se comprimen y el EAR/yaw pueden dispararse: se RECORTAN (no se
+ * descarta el intento). Devuelve null solo si hay valores no numéricos.
+ */
+export function sanitizeFrame(f: LivenessFrame): LivenessFrame | null {
+  if (![f.t, f.ear, f.yaw, f.size].every(Number.isFinite)) return null;
+  return { t: f.t, ear: clamp(f.ear, 0, 1), yaw: clamp(f.yaw, -1.5, 1.5), size: clamp(f.size, 0, 1) };
+}
+
 /** Métricas de un cuadro a partir de los 68 puntos y el ancho de la imagen. */
 export function frameMetrics(points: Pt[], boxWidth: number, imageWidth: number): Omit<LivenessFrame, "t"> {
   if (points.length !== 68) return { ear: 0, yaw: 0, size: 0 };
@@ -63,9 +75,9 @@ export function frameMetrics(points: Pt[], boxWidth: number, imageWidth: number)
   const midX = (outerA.x + outerB.x) / 2;
   const nose = points[30];
   return {
-    ear: (left + right) / 2,
-    yaw: (nose.x - midX) / interOcular,
-    size: imageWidth > 0 ? boxWidth / imageWidth : 0,
+    ear: clamp((left + right) / 2, 0, 1),
+    yaw: clamp((nose.x - midX) / interOcular, -1.5, 1.5),
+    size: imageWidth > 0 ? clamp(boxWidth / imageWidth, 0, 1) : 0,
   };
 }
 
@@ -102,23 +114,83 @@ export function findStep(step: LivenessStep, frames: LivenessFrame[], from: numb
   return -1;
 }
 
+const TURN_SIGN: Record<"turn_left" | "turn_right", 1 | -1> = { turn_left: 1, turn_right: -1 };
+
+/**
+ * Cuántos pasos del reto se cumplieron, en orden.
+ * Los giros se evalúan de forma RELATIVA: el primer giro fija la orientación de
+ * la cámara y los siguientes deben alternar como se pidió. Así funciona igual
+ * con cámaras que entregan la imagen en espejo (muy común en webcams de PC),
+ * y sigue exigiendo girar a un lado y luego al otro.
+ */
+export function stepProgress(
+  steps: LivenessStep[],
+  frames: LivenessFrame[],
+): { done: number; flip: 1 | -1 | 0 } {
+  const yawBase = median(frames.slice(0, Math.min(5, frames.length)).map((f) => f.yaw));
+  let idx = 0;
+  let flip: 1 | -1 | 0 = 0;
+  for (let s = 0; s < steps.length; s++) {
+    const step = steps[s];
+    if (step === "blink") {
+      const at = findStep("blink", frames, idx);
+      if (at < 0) return { done: s, flip };
+      idx = at + 1;
+      continue;
+    }
+    const want = TURN_SIGN[step];
+    let found = -1;
+    for (let i = idx; i < frames.length; i++) {
+      const delta = frames[i].yaw - yawBase;
+      if (Math.abs(delta) <= LIVENESS.turnThreshold) continue;
+      const dir: 1 | -1 = delta > 0 ? 1 : -1;
+      if (flip === 0) {
+        flip = dir === want ? 1 : -1;
+        found = i;
+        break;
+      }
+      if (dir === want * flip) {
+        found = i;
+        break;
+      }
+    }
+    if (found < 0) return { done: s, flip };
+    idx = found + 1;
+  }
+  return { done: steps.length, flip };
+}
+
+/** Resumen numérico de una traza (para diagnosticar intentos fallidos). */
+export function traceStats(frames: LivenessFrame[]) {
+  if (!frames.length) return { cuadros: 0 };
+  const yawBase = median(frames.slice(0, Math.min(5, frames.length)).map((f) => f.yaw));
+  const deltas = frames.map((f) => f.yaw - yawBase);
+  const r = (v: number) => Math.round(v * 1000) / 1000;
+  return {
+    cuadros: frames.length,
+    duracion_ms: Math.round(frames[frames.length - 1].t - frames[0].t),
+    giro_min: r(Math.min(...deltas)),
+    giro_max: r(Math.max(...deltas)),
+    umbral_giro: LIVENESS.turnThreshold,
+  };
+}
+
 export type LivenessResult = { ok: true } | { ok: false; reason: string };
 
 /** Verificación completa de la traza (la que ejecuta el SERVIDOR). */
-export function verifyLiveness(steps: LivenessStep[], frames: LivenessFrame[]): LivenessResult {
+export function verifyLiveness(steps: LivenessStep[], rawFrames: LivenessFrame[]): LivenessResult {
   if (!steps.length) return { ok: false, reason: "sin_pasos" };
-  if (frames.length < LIVENESS.minFrames) return { ok: false, reason: "pocos_cuadros" };
-  if (frames.length > LIVENESS.maxFrames) return { ok: false, reason: "demasiados_cuadros" };
+  if (rawFrames.length < LIVENESS.minFrames) return { ok: false, reason: "pocos_cuadros" };
+  if (rawFrames.length > LIVENESS.maxFrames) return { ok: false, reason: "demasiados_cuadros" };
 
-  for (let i = 0; i < frames.length; i++) {
-    const f = frames[i];
-    const finite = [f.t, f.ear, f.yaw, f.size].every(Number.isFinite);
-    if (!finite || f.ear < 0 || f.ear > 1 || Math.abs(f.yaw) > 2 || f.size < 0 || f.size > 1) {
-      return { ok: false, reason: "valores_invalidos" };
-    }
+  const frames: LivenessFrame[] = [];
+  for (let i = 0; i < rawFrames.length; i++) {
+    const f = sanitizeFrame(rawFrames[i]);
+    if (!f) return { ok: false, reason: "valores_invalidos" };
     if (i > 0 && f.t - frames[i - 1].t < LIVENESS.minFrameIntervalMs) {
       return { ok: false, reason: "tiempos_invalidos" };
     }
+    frames.push(f);
   }
   const duration = frames[frames.length - 1].t - frames[0].t;
   if (duration < LIVENESS.minDurationMs || duration > LIVENESS.maxDurationMs) {
@@ -138,15 +210,11 @@ export function verifyLiveness(steps: LivenessStep[], frames: LivenessFrame[]): 
   for (let i = 1; i < frames.length; i++) {
     const a = frames[i - 1].size;
     const b = frames[i].size;
-    if (a > 0 && b > 0 && Math.max(a, b) / Math.min(a, b) > 1.6) return { ok: false, reason: "salto_de_rostro" };
+    if (a > 0 && b > 0 && Math.max(a, b) / Math.min(a, b) > 2) return { ok: false, reason: "salto_de_rostro" };
   }
 
-  let idx = 0;
-  for (const step of steps) {
-    const at = findStep(step, frames, idx);
-    if (at < 0) return { ok: false, reason: `paso_no_cumplido:${step}` };
-    idx = at + 1;
-  }
+  const { done } = stepProgress(steps, frames);
+  if (done < steps.length) return { ok: false, reason: `paso_no_cumplido:${steps[done]}` };
   return { ok: true };
 }
 

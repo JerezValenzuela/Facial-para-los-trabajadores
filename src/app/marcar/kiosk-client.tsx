@@ -11,10 +11,9 @@ import {
   type FaceSnapshot,
 } from "@/lib/face/browser";
 import {
-  findStep,
   LIVENESS,
   STEP_LABEL,
-  verifyLiveness,
+  stepProgress,
   type LivenessFrame,
   type LivenessStep,
 } from "@/lib/face/liveness";
@@ -30,7 +29,7 @@ type Phase =
   | { name: "idle" }
   | { name: "preparing" }
   | { name: "challenge"; steps: LivenessStep[]; stepIndex: number }
-  | { name: "final" }
+  | { name: "final"; total: number }
   | { name: "verifying" }
   | {
       name: "identified";
@@ -49,7 +48,8 @@ type ChallengeState = {
   frames: LivenessFrame[];
   t0: number;
   stepIndex: number;
-  searchFrom: number;
+  /** Orientación de la cámara detectada en el primer giro (−1 = imagen en espejo). */
+  flip: 1 | -1 | 0;
   startDescriptor: number[];
   frontalCount: number;
   finishing: boolean;
@@ -174,7 +174,19 @@ export function KioskClient({ branchCode }: { branchCode?: string }) {
     if (!ms) return;
     const id = window.setTimeout(() => {
       if (phase.name === "challenge" || phase.name === "final") {
+        const ch = challengeRef.current;
         challengeRef.current = null;
+        // Se informa al servidor para que quede registrado el motivo (diagnóstico).
+        if (ch) {
+          void api("/api/kiosk/abort", {
+            challengeId: ch.id,
+            reason: phase.name === "final" ? "sin_mirar_al_centro" : "tiempo_agotado",
+            stepIndex: ch.stepIndex,
+            frames: ch.frames,
+            device: deviceRef.current,
+            branchCode,
+          });
+        }
         setPhase({
           name: "notice",
           tone: "error",
@@ -187,7 +199,7 @@ export function KioskClient({ branchCode }: { branchCode?: string }) {
       setPhase({ name: "idle" });
     }, ms);
     return () => window.clearTimeout(id);
-  }, [phase]);
+  }, [phase, branchCode]);
 
   // ---- Lógica por cuadro de video ----
   async function startChallenge() {
@@ -214,11 +226,12 @@ export function KioskClient({ branchCode }: { branchCode?: string }) {
       frames: [],
       t0: performance.now(),
       stepIndex: 0,
-      searchFrom: 0,
+      flip: 0,
       startDescriptor: start.descriptor,
       frontalCount: 0,
       finishing: false,
     };
+    setHint("");
     setPhase({ name: "challenge", steps, stepIndex: 0 });
   }
 
@@ -317,10 +330,14 @@ export function KioskClient({ branchCode }: { branchCode?: string }) {
     const now = performance.now();
     if (snap && snap.faces >= 1) lastSeenRef.current = now;
 
-    // Indicador de giro (espejo: tu izquierda se ve a la izquierda).
+    // Indicador de giro: tu izquierda se ve a la izquierda. Si la cámara entrega
+    // la imagen en espejo (se detecta en el primer giro), se corrige el sentido.
     if (meterRef.current) {
-      const yaw = snap?.metrics.yaw ?? 0;
-      const pos = Math.max(4, Math.min(96, 50 - yaw * 120));
+      const chm = challengeRef.current;
+      const base = chm?.frames[0]?.yaw ?? 0;
+      const yaw = (snap?.metrics.yaw ?? base) - base;
+      const sign = chm?.flip === -1 ? -1 : 1;
+      const pos = Math.max(4, Math.min(96, 50 - yaw * 120 * sign));
       meterRef.current.style.left = `${pos}%`;
       meterRef.current.style.opacity = snap ? "1" : "0.25";
     }
@@ -388,19 +405,18 @@ export function KioskClient({ branchCode }: { branchCode?: string }) {
     }
 
     if (phase.name === "challenge") {
-      let advanced = false;
-      while (ch.stepIndex < ch.steps.length) {
-        const at = findStep(ch.steps[ch.stepIndex], ch.frames, ch.searchFrom);
-        if (at < 0) break;
-        ch.stepIndex += 1;
-        ch.searchFrom = at + 1;
-        advanced = true;
-      }
-      if (ch.stepIndex >= ch.steps.length) {
-        // Mismo chequeo que hará el servidor; si aún no pasa, se siguen tomando cuadros.
-        if (verifyLiveness(ch.steps, ch.frames).ok) setPhase({ name: "final" });
-      } else if (advanced) {
+      // Misma lógica que verifica el servidor (giros relativos: sirve con cámaras en espejo).
+      const progress = stepProgress(ch.steps, ch.frames);
+      ch.flip = progress.flip;
+      if (progress.done >= ch.steps.length) {
+        // El servidor hará la verificación completa de la traza.
+        setPhase({ name: "final", total: ch.steps.length + 1 });
+      } else if (progress.done !== ch.stepIndex) {
+        ch.stepIndex = progress.done;
         setPhase({ name: "challenge", steps: ch.steps, stepIndex: ch.stepIndex });
+      } else {
+        const delta = Math.abs(snap.metrics.yaw - (ch.frames[0]?.yaw ?? 0));
+        setHint(delta > LIVENESS.turnThreshold * 0.5 ? "Un poco más…" : "");
       }
       return;
     }
@@ -608,23 +624,25 @@ export function KioskClient({ branchCode }: { branchCode?: string }) {
         {phase.name === "challenge" && (
           <div className="w-full max-w-2xl text-center">
             <p className="text-sm tracking-wide text-slate-400 uppercase">
-              Prueba de vida · paso {Math.min(phase.stepIndex + 1, phase.steps.length)} de {phase.steps.length}
+              Prueba de vida · paso {Math.min(phase.stepIndex + 1, phase.steps.length + 1)} de {phase.steps.length + 1}
             </p>
             <p className="mt-2 text-4xl font-bold">
               <StepIcon step={phase.steps[phase.stepIndex]} /> {STEP_LABEL[phase.steps[phase.stepIndex]]}
             </p>
-            <div className="mt-4 flex justify-center gap-2">
-              {phase.steps.map((s, i) => (
-                <span
-                  key={`${s}-${i}`}
-                  className={`h-2.5 w-16 rounded-full ${i < phase.stepIndex ? "bg-emerald-400" : i === phase.stepIndex ? "bg-sky-400" : "bg-white/20"}`}
-                />
-              ))}
-            </div>
+            <p className="mt-2 h-7 text-xl text-sky-300">{hint}</p>
+            <StepDots total={phase.steps.length + 1} current={phase.stepIndex} />
           </div>
         )}
 
-        {phase.name === "final" && <Instruction big>Ahora mira de frente a la cámara</Instruction>}
+        {phase.name === "final" && (
+          <div className="w-full max-w-2xl text-center">
+            <p className="text-sm tracking-wide text-slate-400 uppercase">
+              Prueba de vida · paso {phase.total} de {phase.total}
+            </p>
+            <p className="mt-2 text-4xl font-bold">🎯 Ahora mira al centro, de frente</p>
+            <StepDots total={phase.total} current={phase.total - 1} />
+          </div>
+        )}
 
         {phase.name === "identified" && (
           <div className="flex w-full max-w-2xl flex-col items-center gap-4">
@@ -661,6 +679,19 @@ function Overlay({ children }: { children: React.ReactNode }) {
 
 function Instruction({ children, big }: { children: React.ReactNode; big?: boolean }) {
   return <p className={`text-center font-semibold ${big ? "text-3xl" : "text-xl"}`}>{children}</p>;
+}
+
+function StepDots({ total, current }: { total: number; current: number }) {
+  return (
+    <div className="mt-4 flex justify-center gap-2">
+      {Array.from({ length: total }, (_, i) => (
+        <span
+          key={i}
+          className={`h-2.5 w-16 rounded-full ${i < current ? "bg-emerald-400" : i === current ? "bg-sky-400" : "bg-white/20"}`}
+        />
+      ))}
+    </div>
+  );
 }
 
 function Spinner() {

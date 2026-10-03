@@ -60,8 +60,13 @@ export async function detectFaces(
   const main = results.reduce((a, b) => (a.detection.box.area > b.detection.box.area ? a : b));
   const points = main.landmarks.positions.map((p) => ({ x: p.x, y: p.y }));
   const box = main.detection.box;
+  // Otra "cara" solo cuenta si es nítida y de tamaño real (evita falsos positivos
+  // del detector en el fondo: carteles, reflejos, sombras).
+  const significant = results.filter(
+    (r) => r === main || (r.detection.score >= 0.7 && r.detection.box.width >= video.videoWidth * 0.1),
+  ).length;
   return {
-    faces: results.length,
+    faces: significant,
     score: main.detection.score,
     box: { x: box.x, y: box.y, width: box.width, height: box.height },
     points,
