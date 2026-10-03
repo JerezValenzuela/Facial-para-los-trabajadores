@@ -5,6 +5,7 @@ import {
   frameMetrics,
   maxPairwiseDistance,
   meanDescriptor,
+  kioskSteps,
   randomSteps,
   verifyLiveness,
   type LivenessFrame,
@@ -89,6 +90,15 @@ describe("verificación de liveness (servidor)", () => {
     const t = trace(["blink"]);
     t[10] = { ...t[10], size: 0.6 };
     expect(verifyLiveness(["blink"], t)).toMatchObject({ ok: false, reason: "salto_de_rostro" });
+  });
+
+  it("el reto del kiosco es solo girar a ambos lados (sin parpadeo), en orden aleatorio", () => {
+    expect(kioskSteps(() => 0.1)).toEqual(["turn_right", "turn_left"]);
+    expect(kioskSteps(() => 0.9)).toEqual(["turn_left", "turn_right"]);
+    for (const steps of [kioskSteps(() => 0.1), kioskSteps(() => 0.9)]) {
+      expect(verifyLiveness(steps, trace(steps))).toEqual({ ok: true });
+      expect(verifyLiveness(steps, trace(steps, { still: true })).ok).toBe(false);
+    }
   });
 
   it("los retos aleatorios no repiten pasos", () => {

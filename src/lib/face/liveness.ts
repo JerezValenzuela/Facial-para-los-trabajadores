@@ -125,11 +125,14 @@ export function verifyLiveness(steps: LivenessStep[], frames: LivenessFrame[]): 
     return { ok: false, reason: "duracion_invalida" };
   }
 
-  // Una imagen estática casi no varía; un rostro real sí (micro-movimientos).
-  const ears = frames.map((f) => f.ear);
-  const mean = ears.reduce((a, b) => a + b, 0) / ears.length;
-  const variance = ears.reduce((a, b) => a + (b - mean) ** 2, 0) / ears.length;
-  if (Math.sqrt(variance) < 0.004) return { ok: false, reason: "sin_variacion" };
+  // Una imagen estática casi no varía; un rostro real sí (ojos y giro de cabeza).
+  const std = (values: number[]) => {
+    const mean = values.reduce((a, b) => a + b, 0) / values.length;
+    return Math.sqrt(values.reduce((a, b) => a + (b - mean) ** 2, 0) / values.length);
+  };
+  if (std(frames.map((f) => f.ear)) < 0.004 && std(frames.map((f) => f.yaw)) < 0.02) {
+    return { ok: false, reason: "sin_variacion" };
+  }
 
   // La cara no debe "saltar" de tamaño (cambio de imagen frente a la cámara).
   for (let i = 1; i < frames.length; i++) {
@@ -145,6 +148,15 @@ export function verifyLiveness(steps: LivenessStep[], frames: LivenessFrame[]): 
     idx = at + 1;
   }
   return { ok: true };
+}
+
+/**
+ * Reto del kiosco: girar a la derecha y a la izquierda (orden aleatorio que
+ * decide el SERVIDOR, para que un video grabado no sirva) y luego mirar al
+ * centro para la captura final. Sin parpadeo.
+ */
+export function kioskSteps(rand: () => number = Math.random): LivenessStep[] {
+  return rand() < 0.5 ? ["turn_right", "turn_left"] : ["turn_left", "turn_right"];
 }
 
 /** Elige `count` pasos aleatorios sin repetir consecutivos (lo decide el SERVIDOR). */

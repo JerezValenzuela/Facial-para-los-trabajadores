@@ -106,8 +106,11 @@ export function SettingsForm({ values }: { values: SettingsValues }) {
       <Section title="Reconocimiento facial y prueba de vida">
         <NumberField name="face_match_threshold" label="Umbral de coincidencia (distancia)" value={values.face_match_threshold} min={0.3} max={0.65} step={0.01}
           help="Menor = más estricto. Recomendado 0.45–0.50. Si 2 empleados quedan bajo el umbral, se rechaza por ambigüedad." error={fe?.face_match_threshold} />
-        <NumberField name="liveness_steps" label="Retos de vida por marcación" value={values.liveness_steps} min={1} max={3}
-          help="Parpadeo o giros de cabeza, en orden aleatorio. Recomendado: 2." error={fe?.liveness_steps} />
+        <input type="hidden" name="liveness_steps" value={values.liveness_steps} />
+        <div className="rounded-lg bg-slate-50 p-3 text-sm text-slate-600">
+          <p className="font-medium text-slate-800">Prueba de vida en el kiosco</p>
+          Girar la cabeza a la derecha y a la izquierda (orden aleatorio) y luego mirar al centro. Sin parpadeo.
+        </div>
       </Section>
 
       <Section title="Evidencia (miniaturas)" description="Foto pequeña (160×160) guardada en almacenamiento privado al marcar o al fallar un intento.">

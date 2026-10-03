@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
 import { challengeBodySchema } from "@/lib/kiosk/schemas";
 import { kioskError, kioskGuard, readJsonBody } from "@/lib/kiosk/guard";
-import { randomSteps } from "@/lib/face/liveness";
-import { getSettings } from "@/lib/settings";
+import { kioskSteps } from "@/lib/face/liveness";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { logError } from "@/lib/log";
 
@@ -10,8 +9,9 @@ import { logError } from "@/lib/log";
 const CHALLENGE_TTL_MS = 45_000;
 
 /**
- * Emite un reto de liveness ALEATORIO decidido por el servidor, de un solo uso,
- * ligado a la IP del equipo y con caducidad corta.
+ * Emite el reto de liveness (giro a la derecha y a la izquierda en orden aleatorio
+ * decidido por el servidor, luego mirar al centro), de un solo uso, ligado a la
+ * IP del equipo y con caducidad corta.
  */
 export async function POST(req: Request) {
   const body = challengeBodySchema.safeParse(await readJsonBody(req, 4_000));
@@ -23,8 +23,7 @@ export async function POST(req: Request) {
   });
   if (!g.ok) return g.response;
 
-  const settings = await getSettings();
-  const steps = randomSteps(settings.liveness_steps);
+  const steps = kioskSteps();
   const { data, error } = await supabaseAdmin()
     .from("kiosk_challenges")
     .insert({

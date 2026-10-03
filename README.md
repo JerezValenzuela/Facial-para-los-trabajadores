@@ -33,7 +33,7 @@ Stack: Next.js 16 (App Router) · TypeScript · Tailwind CSS 4 · Supabase (Post
  ───────────────────────────────────                     ────────────────                       ────────
  cámara → face-api (detector, 68 puntos,  ── POST ──▶  /api/kiosk/challenge  ─────────────▶  kiosk_challenges (reto aleatorio,
           descriptor 128D)                                  · IP del local / rate limit           un solo uso, 45 s, ligado a la IP)
- sigue el reto (parpadeo/giros) y envía                     · bloqueo de móviles
+ sigue el reto (giros + centro) y envía                     · bloqueo de móviles
  traza de puntos + 2 descriptores + miniatura ─────▶  /api/kiosk/identify   ─────────────▶  kiosk_match_face() con pgvector
                                                             · re-verifica liveness                (los vectores NUNCA salen de Postgres)
                                                             · misma persona todo el reto
@@ -53,7 +53,7 @@ Stack: Next.js 16 (App Router) · TypeScript · Tailwind CSS 4 · Supabase (Post
 | Rendimiento | Instantáneo | ~5 ms en BD con 15 empleados × 5 muestras, más la latencia de red |
 
 **Trade-off honesto:** el vector y la prueba de vida se calculan en el navegador, y alguien que controle ese navegador podría enviar datos fabricados. Calcular el vector en el servidor (TensorFlow en Vercel) costaría segundos por arranque en frío y funciones pesadas, y no eliminaría el problema de fondo: una cámara web 2D no prueba la presencia física. Por eso la seguridad se apoya en **varias capas**:
-1. El **reto lo elige el servidor**: es aleatorio, de un solo uso, caduca en 45 s y está ligado a la IP. El servidor **re-verifica** la secuencia de puntos (parpadeo y giros en el orden pedido) y que la cara sea la misma al inicio y al final.
+1. El **reto lo elige el servidor**: es aleatorio, de un solo uso, caduca en 45 s y está ligado a la IP. El servidor **re-verifica** la secuencia de puntos (giro a la derecha y a la izquierda en el orden pedido, y vuelta al centro) y que la cara sea la misma al inicio y al final.
 2. **IP pública del local**: hay que estar físicamente en la tienda.
 3. **Miniatura de evidencia** en cada marcación e intento fallido.
 4. **Auditoría** completa: intentos fallidos, alertas por intentos repetidos y registro de acciones del administrador.
@@ -237,7 +237,7 @@ Todas se editan en **Dashboard → Configuración** (tabla `settings`):
 | Cooldown entre marcaciones | 60 s | Rechaza marcaciones del mismo empleado antes de ese tiempo |
 | Días laborables | lun–sáb | Un día no laborable sin marcaciones no cuenta como “Incompleto” |
 | Umbral facial | 0.50 | Distancia euclidiana máxima. Menor es más estricto. Si 2 empleados quedan bajo el umbral, se rechaza por ambigüedad |
-| Retos de vida | 2 | Parpadeo, giro a la izquierda o giro a la derecha, en orden aleatorio |
+| Prueba de vida | fija | Girar la cabeza a la derecha y a la izquierda (orden aleatorio) y mirar al centro. Sin parpadeo |
 | Evidencia | activada, 90 días | Miniatura de 160×160 en el bucket privado; la limpieza diaria borra las vencidas |
 
 Estados del día: **Completo**, **En curso** (hoy, con marcaciones parciales), **Incompleto** (faltó alguna marcación) e **Incompleto (sin marcaciones)**. Las filas con atraso o exceso van en **rojo**; las incompletas, en **amarillo**. Los minutos se cuentan completos (se truncan los segundos).
