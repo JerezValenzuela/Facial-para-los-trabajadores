@@ -68,7 +68,10 @@ type ChallengeState = {
 };
 
 const CHALLENGE_TIMEOUT_MS = 20_000;
-const IDENTIFIED_TIMEOUT_MS = 60_000;
+/** Tiempo para elegir la marcación; si se acaba, hay que volver a escanear el rostro. */
+const CHOICE_SECONDS = 15;
+/** El panel de permiso necesita más tiempo (horas y hora de inicio); se reinicia con cada toque. */
+const PERMISSION_TIMEOUT_MS = 60_000;
 const SUCCESS_DISPLAY_MS = 6_000;
 const NOTICE_DISPLAY_MS = 5_000;
 const PRESENCE_FRAMES = 6;
@@ -186,8 +189,8 @@ export function KioskClient({ branchCode }: { branchCode?: string }) {
     let ms = 0;
     if (phase.name === "success") ms = SUCCESS_DISPLAY_MS;
     else if (phase.name === "notice") ms = NOTICE_DISPLAY_MS;
-    else if (phase.name === "identified") ms = IDENTIFIED_TIMEOUT_MS;
-    else if (phase.name === "permission" && !phase.sending) ms = IDENTIFIED_TIMEOUT_MS;
+    else if (phase.name === "identified") ms = CHOICE_SECONDS * 1000;
+    else if (phase.name === "permission" && !phase.sending) ms = PERMISSION_TIMEOUT_MS;
     else if (phase.name === "challenge" || phase.name === "final") ms = CHALLENGE_TIMEOUT_MS;
     if (!ms) return;
     const id = window.setTimeout(() => {
@@ -212,6 +215,10 @@ export function KioskClient({ branchCode }: { branchCode?: string }) {
           message: "No se completó la verificación. Vuelve a intentarlo siguiendo las instrucciones.",
         });
         return;
+      }
+      if (phase.name === "identified" || phase.name === "permission") {
+        // No eligió a tiempo: la identificación se descarta y se vuelve a escanear.
+        setHint("Se acabó el tiempo para elegir. Mira a la cámara para escanearte de nuevo.");
       }
       restUntilRef.current = monotonicNow() + 3000;
       setPhase({ name: "idle" });
@@ -707,6 +714,7 @@ export function KioskClient({ branchCode }: { branchCode?: string }) {
           <div className="flex w-full max-w-2xl flex-col items-center gap-4">
             <p className="text-4xl font-bold">¡Hola, {phase.firstName}! 👋</p>
             <p className="text-2xl text-slate-300">¿Vas a…?</p>
+            <ChoiceCountdown key={phase.ticket} seconds={CHOICE_SECONDS} />
             <div className="grid w-full grid-cols-1 gap-3 sm:grid-cols-2">
               {phase.options.map((o) => (
                 <OptionButton
@@ -753,6 +761,32 @@ export function KioskClient({ branchCode }: { branchCode?: string }) {
         </p>
       </footer>
     </main>
+  );
+}
+
+/** Cuenta regresiva visible para elegir (el corte real lo hace el temporizador de fases). */
+function ChoiceCountdown({ seconds }: { seconds: number }) {
+  const [left, setLeft] = useState(seconds);
+  useEffect(() => {
+    const start = monotonicNow();
+    const id = window.setInterval(() => {
+      setLeft(Math.max(0, seconds - Math.floor((monotonicNow() - start) / 1000)));
+    }, 250);
+    return () => window.clearInterval(id);
+  }, [seconds]);
+  const urgent = left <= 5;
+  return (
+    <div className="w-full max-w-md">
+      <p className={`text-center text-lg font-semibold ${urgent ? "text-red-300" : "text-slate-300"}`}>
+        ⏱️ Tienes {left} {left === 1 ? "segundo" : "segundos"} para elegir
+      </p>
+      <div className="mt-2 h-2 overflow-hidden rounded-full bg-white/15">
+        <div
+          className={`h-full rounded-full transition-[width] duration-300 ease-linear ${urgent ? "bg-red-400" : "bg-brand-500"}`}
+          style={{ width: `${(left / seconds) * 100}%` }}
+        />
+      </div>
+    </div>
   );
 }
 
