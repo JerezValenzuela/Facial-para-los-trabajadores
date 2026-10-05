@@ -3,8 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireAdminSession, UnauthorizedError } from "@/lib/auth";
-import { type ActionResult, zodFieldErrors } from "@/lib/action-result";
-import { employeeSchema, scheduleSchema, uuid } from "@/lib/validation";
+import type { ActionResult } from "@/lib/action-result";
+import { parseEmployeeForm, uuid } from "@/lib/validation";
 import { friendlyDbError } from "@/lib/db-errors";
 import { CONSENT_VERSION } from "@/lib/consent";
 import { supabaseAdmin } from "@/lib/supabase/admin";
@@ -19,39 +19,11 @@ function fail(e: unknown): ActionResult {
   return { ok: false, error: "Ocurrió un error inesperado." };
 }
 
-/** Datos + horario del formulario. Devuelve los errores de ambos juntos. */
-function readEmployee(formData: FormData) {
-  const base = employeeSchema.safeParse({
-    full_name: formData.get("full_name"),
-    cedula: formData.get("cedula"),
-    branch_id: formData.get("branch_id"),
-    position: formData.get("position"),
-  });
-  const schedule = scheduleSchema.safeParse({
-    work_days: formData.getAll("work_days").map(String),
-    same_time: formData.get("same_time") === "on",
-    entry_time: String(formData.get("entry_time") ?? ""),
-    day_times: Object.fromEntries(
-      [1, 2, 3, 4, 5, 6, 7].map((d) => [String(d), String(formData.get(`entry_time_${d}`) ?? "")]),
-    ),
-  });
-  if (base.success && schedule.success) {
-    return { success: true as const, data: { ...base.data, ...schedule.data } };
-  }
-  return {
-    success: false as const,
-    fieldErrors: {
-      ...(base.success ? {} : zodFieldErrors(base.error)),
-      ...(schedule.success ? {} : zodFieldErrors(schedule.error)),
-    },
-  };
-}
-
 export async function createEmployeeAction(_prev: ActionResult, formData: FormData): Promise<ActionResult> {
   let newId: string | null = null;
   try {
     const { supabase, user } = await requireAdminSession();
-    const parsed = readEmployee(formData);
+    const parsed = parseEmployeeForm(formData);
     if (!parsed.success) {
       return { ok: false, error: "Revisa los datos del formulario.", fieldErrors: parsed.fieldErrors };
     }
@@ -80,7 +52,7 @@ export async function updateEmployeeAction(_prev: ActionResult, formData: FormDa
   try {
     const { supabase, user } = await requireAdminSession();
     const id = uuid.safeParse(formData.get("id"));
-    const parsed = readEmployee(formData);
+    const parsed = parseEmployeeForm(formData);
     if (!id.success) return { ok: false, error: "Empleado inválido." };
     if (!parsed.success) {
       return { ok: false, error: "Revisa los datos del formulario.", fieldErrors: parsed.fieldErrors };

@@ -107,7 +107,7 @@ export function EmployeeForm({
               return (
                 <label
                   key={d.iso}
-                  className={`flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium transition select-none ${
+                  className={`flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium transition select-none has-focus-visible:ring-2 has-focus-visible:ring-brand-500 has-focus-visible:ring-offset-1 ${
                     on ? "border-brand-600 bg-brand-600 text-white" : "border-slate-300 bg-white text-slate-600 hover:border-slate-400"
                   }`}
                 >

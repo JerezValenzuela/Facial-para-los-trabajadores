@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { parseIpOrCidr } from "@/lib/security/ip";
+import { zodFieldErrors } from "@/lib/action-result";
 
 /**
  * Cédula ecuatoriana: 10 dígitos, provincia 01–24 (o 30 para extranjeros
@@ -80,6 +81,37 @@ export const scheduleSchema = z
     return { work_days, entry_time: entry_times[String(work_days[0])], entry_times };
   });
 export type ScheduleInput = z.infer<typeof scheduleSchema>;
+
+/**
+ * Lee el formulario del empleado (datos + horario) tal como lo envía el
+ * navegador. Devuelve los errores de ambas partes juntos para marcarlos todos.
+ */
+export function parseEmployeeForm(formData: FormData) {
+  const base = employeeSchema.safeParse({
+    full_name: formData.get("full_name"),
+    cedula: formData.get("cedula"),
+    branch_id: formData.get("branch_id"),
+    position: formData.get("position"),
+  });
+  const schedule = scheduleSchema.safeParse({
+    work_days: formData.getAll("work_days").map(String),
+    same_time: formData.get("same_time") === "on",
+    entry_time: String(formData.get("entry_time") ?? ""),
+    day_times: Object.fromEntries(
+      [1, 2, 3, 4, 5, 6, 7].map((d) => [String(d), String(formData.get(`entry_time_${d}`) ?? "")]),
+    ),
+  });
+  if (base.success && schedule.success) {
+    return { success: true as const, data: { ...base.data, ...schedule.data } };
+  }
+  return {
+    success: false as const,
+    fieldErrors: {
+      ...(base.success ? {} : zodFieldErrors(base.error)),
+      ...(schedule.success ? {} : zodFieldErrors(schedule.error)),
+    },
+  };
+}
 
 export const branchSchema = z.object({
   name: trimmed(2, 80, "Nombre"),
