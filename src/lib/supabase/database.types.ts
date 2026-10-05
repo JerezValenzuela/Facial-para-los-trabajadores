@@ -272,10 +272,12 @@ export type Database = {
           consent_version: string | null
           created_at: string
           entry_time: string
+          entry_times: Json
           full_name: string
           id: string
           position: string
           updated_at: string
+          work_days: number[]
         }
         Insert: {
           active?: boolean
@@ -288,10 +290,12 @@ export type Database = {
           consent_version?: string | null
           created_at?: string
           entry_time: string
+          entry_times?: Json
           full_name: string
           id?: string
           position: string
           updated_at?: string
+          work_days?: number[]
         }
         Update: {
           active?: boolean
@@ -304,10 +308,12 @@ export type Database = {
           consent_version?: string | null
           created_at?: string
           entry_time?: string
+          entry_times?: Json
           full_name?: string
           id?: string
           position?: string
           updated_at?: string
+          work_days?: number[]
         }
         Relationships: [
           {

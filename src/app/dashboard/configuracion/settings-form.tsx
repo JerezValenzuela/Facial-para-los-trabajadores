@@ -89,7 +89,7 @@ export function SettingsForm({ values }: { values: SettingsValues }) {
         <NumberField name="cooldown_seconds" label="Espera entre marcaciones (s)" value={values.cooldown_seconds} min={10} max={3600}
           help="Evita marcaciones dobles del mismo empleado." error={fe?.cooldown_seconds} />
         <div className="sm:col-span-2">
-          <p className="label">Días laborables</p>
+          <p className="label">Días de trabajo por defecto (empleados nuevos)</p>
           <div className="flex flex-wrap gap-2">
             {[1, 2, 3, 4, 5, 6, 7].map((d) => (
               <label key={d} className="flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-1.5 text-sm">
@@ -98,7 +98,10 @@ export function SettingsForm({ values }: { values: SettingsValues }) {
               </label>
             ))}
           </div>
-          <p className="mt-1 text-xs text-slate-500">Los días no laborables sin marcaciones no aparecen como “Incompleto”.</p>
+          <p className="mt-1 text-xs text-slate-500">
+            Solo se usan para pre-marcar los días al crear un empleado. Cada empleado tiene sus propios días y horas en
+            su ficha (Empleados → Editar).
+          </p>
           <FieldError message={fe?.work_days} />
         </div>
       </Section>

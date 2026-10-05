@@ -11,7 +11,7 @@ export type ReportData = {
   branches: { id: string; name: string }[];
   employees: { id: string; full_name: string; branch_id: string; active: boolean }[];
   branchName: Map<string, string>;
-  settings: { entry_tolerance_minutes: number; lunch_allowed_minutes: number; work_days: number[] };
+  settings: { entry_tolerance_minutes: number; lunch_allowed_minutes: number };
   totals: { rows: number; late: number; lunchExcess: number; incomplete: number; permissions: number };
 };
 
@@ -26,13 +26,13 @@ export async function loadReport(
 ): Promise<ReportData> {
   let empQuery = supabase
     .from("employees")
-    .select("id, full_name, cedula, branch_id, position, entry_time, active, created_at")
+    .select("id, full_name, cedula, branch_id, position, entry_time, work_days, entry_times, active, created_at")
     .order("full_name");
   if (filters.branchId) empQuery = empQuery.eq("branch_id", filters.branchId);
   if (filters.employeeId) empQuery = empQuery.eq("id", filters.employeeId);
 
   const [{ data: settingsRow }, { data: branches }, { data: employees }, { data: allEmployees }] = await Promise.all([
-    supabase.from("settings").select("entry_tolerance_minutes, lunch_allowed_minutes, work_days").eq("id", 1).maybeSingle(),
+    supabase.from("settings").select("entry_tolerance_minutes, lunch_allowed_minutes").eq("id", 1).maybeSingle(),
     supabase.from("branches").select("id, name").order("name"),
     empQuery,
     supabase.from("employees").select("id, full_name, branch_id, active").order("full_name"),
@@ -41,7 +41,6 @@ export async function loadReport(
   const settings = settingsRow ?? {
     entry_tolerance_minutes: DEFAULT_SETTINGS.entry_tolerance_minutes,
     lunch_allowed_minutes: DEFAULT_SETTINGS.lunch_allowed_minutes,
-    work_days: DEFAULT_SETTINGS.work_days,
   };
 
   const ids = (employees ?? []).map((e) => e.id);
@@ -82,7 +81,6 @@ export async function loadReport(
     to: filters.to,
     today: todayInTz(now),
     now,
-    workDays: settings.work_days,
     toleranceMinutes: settings.entry_tolerance_minutes,
     lunchAllowedMinutes: settings.lunch_allowed_minutes,
   });

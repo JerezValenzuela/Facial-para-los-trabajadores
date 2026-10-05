@@ -47,7 +47,7 @@ describe("permisos: efecto en el atraso y el estado", () => {
   it("el reporte muestra el permiso aunque no haya marcaciones (incluso en día no laborable)", () => {
     const rows = buildDailyReport({
       employees: [
-        { id: "e1", full_name: "Ana", cedula: "1712345675", branch_id: "b1", position: "Cajera", entry_time: "08:00:00", active: true, created_at: "2026-01-01T00:00:00Z" },
+        { id: "e1", full_name: "Ana", cedula: "1712345675", branch_id: "b1", position: "Cajera", entry_time: "08:00:00", work_days: [1, 2, 3, 4, 5, 6], entry_times: {}, active: true, created_at: "2026-01-01T00:00:00Z" },
       ],
       events: [],
       permissions: [{ employee_id: "e1", work_date: "2026-10-04", kind: "dia_completo", start_time: null, hours: null }],
@@ -55,7 +55,6 @@ describe("permisos: efecto en el atraso y el estado", () => {
       to: "2026-10-04",
       today: "2026-10-05",
       now: opts.now,
-      workDays: [1, 2, 3, 4, 5, 6],
       toleranceMinutes: 7,
       lunchAllowedMinutes: 60,
     });

@@ -11,12 +11,16 @@
  *  - Por horas: si el permiso empieza antes de la hora de entrada (+ tolerancia),
  *    la entrada esperada pasa a ser el FIN del permiso (no cuenta como atraso).
  *
+ * Horario por empleado (ver schedule.ts): solo aparecen sus días de trabajo.
+ * Si marca en un día libre, la fila sale como "Día libre" y sin atraso.
+ *
  * Todos los minutos son minutos COMPLETOS (se truncan los segundos).
  * Las fechas de calendario están en America/Guayaquil.
  */
-import { dateInTz, dateRange, isoWeekday, minutesBetween, zonedToUtc } from "@/lib/time";
+import { dateInTz, dateRange, minutesBetween, zonedToUtc } from "@/lib/time";
 import type { AttendanceEventType } from "./events";
 import type { DayPermission } from "./permissions";
+import { entryTimeFor, scheduleFromRow, worksOn } from "./schedule";
 
 export type DayRules = {
   entryTime: string; // "08:00" o "08:00:00"
@@ -148,6 +152,10 @@ export type ReportEmployee = {
   branch_id: string;
   position: string;
   entry_time: string;
+  /** Días de trabajo (ISO 1 = lunes … 7 = domingo). */
+  work_days: number[];
+  /** Hora por día ({"1":"07:00"}); vacío = misma hora todos los días. */
+  entry_times: unknown;
   active: boolean;
   created_at: string;
 };
@@ -176,7 +184,10 @@ export type ReportRow = DaySummary & {
   cedula: string;
   position: string;
   branchId: string;
+  /** Hora de entrada de ese día ("HH:MM") o "Libre" si no le tocaba trabajar. */
   entryTime: string;
+  /** Marcó en un día que no es de su horario (no cuenta atraso). */
+  dayOff: boolean;
   /** Foto del día para el Excel: la de la ENTRADA o, si no hay, la de la primera marcación. */
   photoPath: string | null;
 };
@@ -188,7 +199,6 @@ export function buildDailyReport(input: {
   to: string;
   today: string;
   now: Date;
-  workDays: number[];
   toleranceMinutes: number;
   lunchAllowedMinutes: number;
   permissions?: ReportPermission[];
@@ -222,25 +232,32 @@ export function buildDailyReport(input: {
 
   for (const emp of input.employees) {
     const createdDate = dateInTz(new Date(emp.created_at));
+    const schedule = scheduleFromRow(emp);
     for (const date of dates) {
       const events = byKey.get(`${emp.id}|${date}`);
       const permission = permissionByKey.get(`${emp.id}|${date}`) ?? null;
       const hasEvents = !!events && Object.keys(events).length > 0;
+      const workDay = worksOn(schedule, date);
       if (!hasEvents && !permission) {
-        // Sin marcaciones: solo cuenta en días laborables, con el empleado activo y ya registrado.
-        if (!emp.active || date < createdDate || !input.workDays.includes(isoWeekday(date))) continue;
+        // Sin marcaciones: solo cuenta en SUS días de trabajo, con el empleado activo y ya registrado.
+        if (!emp.active || date < createdDate || !workDay) continue;
       }
       const summary = summarizeDay(
         date,
         events ?? {},
         {
-          entryTime: emp.entry_time,
+          entryTime: entryTimeFor(schedule, date),
           toleranceMinutes: input.toleranceMinutes,
           lunchAllowedMinutes: input.lunchAllowedMinutes,
         },
         { today: input.today, now: input.now },
         permission,
       );
+      if (!workDay) {
+        // Día libre: no hay hora de entrada esperada, así que no hay atraso.
+        summary.lateMinutes = 0;
+        summary.flagged = summary.lunchExcessMinutes > 0;
+      }
       rows.push({
         ...summary,
         employeeId: emp.id,
@@ -248,7 +265,8 @@ export function buildDailyReport(input: {
         cedula: emp.cedula,
         position: emp.position,
         branchId: emp.branch_id,
-        entryTime: emp.entry_time.slice(0, 5),
+        entryTime: workDay ? entryTimeFor(schedule, date) : "Libre",
+        dayOff: !workDay,
         photoPath: photoByKey.get(`${emp.id}|${date}`)?.path ?? null,
       });
     }

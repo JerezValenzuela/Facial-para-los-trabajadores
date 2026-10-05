@@ -73,7 +73,9 @@ function Row({ r, branch, onOpen }: { r: ReportRow; branch: string; onOpen: () =
       <td className="td text-slate-600">{formatDateLabel(r.date)}</td>
       <td className="td font-medium">{r.employeeName}</td>
       <td className="td">{branch}</td>
-      <td className="td font-mono text-slate-500">{r.entryTime}</td>
+      <td className="td font-mono text-slate-500">
+        {r.dayOff ? <span className="font-sans text-xs font-semibold text-sky-700">Libre</span> : r.entryTime}
+      </td>
       <td className="td font-mono">{formatTime(r.entrada)}</td>
       <td className="td font-mono">{formatTime(r.salidaAlmuerzo)}</td>
       <td className="td font-mono">{formatTime(r.regresoAlmuerzo)}</td>

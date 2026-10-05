@@ -66,6 +66,10 @@ Las pruebas automáticas se corren con `npm test` (66 pruebas: estados, cálculo
 - [ ] Todos los rechazos aparecen en **Intentos fallidos** con motivo, IP y miniatura (cuando aplica).
 
 ## 7. Dashboard de asistencia
+- [ ] Al entrar se ve **solo hoy** (“Hoy, lun …”). “Ver rápido: Ayer / Últimos 7 días / Últimos 30 días” cambian el rango y conservan sucursal y empleado.
+- [ ] **Horario por empleado**: en Empleados → Editar, desmarca “Dom” y guarda → ese empleado ya no aparece los domingos. Un empleado solo con “Dom” aparece solo los domingos.
+- [ ] Quita “Entra a la misma hora todos los días” → aparece una hora por cada día elegido; pon el sábado más tarde y verifica que el atraso del sábado usa esa hora. La lista de Empleados muestra “Lun–Vie 07:00 · Sáb 08:00”.
+- [ ] Si alguien marca en su día libre, la fila sale con Horario “Libre” y sin atraso; el kiosco dice “Hoy es tu día libre”.
 - [ ] La tabla muestra entrada, salida/regreso de almuerzo, salida final, duración, exceso, atraso y horas trabajadas.
 - [ ] Para provocar **atraso**: pon el horario del empleado 30 min antes de la hora actual y marca entrada → fila **roja** con “+23 min”.
 - [ ] Para provocar **exceso de almuerzo**: en Configuración pon “Almuerzo permitido” = 10 min, marca salida a almuerzo, espera 12 min y marca regreso → fila roja y alerta registrada.

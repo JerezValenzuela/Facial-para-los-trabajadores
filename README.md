@@ -126,6 +126,7 @@ Las migraciones están versionadas en `supabase/migrations/` y **ya están aplic
 | `…0006_eleccion_de_evento.sql` | El empleado elige su marcación (regla “solo hacia adelante”) |
 | `…0007_permisos_y_foto_escena.sql` | Permisos (todo el día / por horas) y foto de escena |
 | `…0008_eliminar_empleado.sql` | `admin_delete_employee`: borra al empleado y todo lo suyo en una transacción (solo el servidor) |
+| `…0009_horario_por_empleado.sql` | Horario por empleado: `work_days` (días que trabaja) y `entry_times` (hora de cada día) |
 
 Tablas: `branches`, `branch_ips`, `employees`, `face_templates`, `attendance_events`, `failed_attempts`, `alerts`, `settings` y `admin_users`, más tres de soporte: `kiosk_challenges` (retos de un solo uso), `rate_limits` y `audit_log`.
 
@@ -239,7 +240,9 @@ Todas se editan en **Dashboard → Configuración** (tabla `settings`):
 | Almuerzo permitido | 60 min | **Exceso** = duración real del almuerzo − permitido (mín. 0) |
 | Horas trabajadas | — | (salida final − entrada) − duración del almuerzo |
 | Cooldown entre marcaciones | 60 s | Rechaza marcaciones del mismo empleado antes de ese tiempo |
-| Días laborables | lun–sáb | Un día no laborable sin marcaciones no cuenta como “Incompleto” |
+| Horario del empleado | en su ficha | Cada empleado tiene **sus días de trabajo** y su hora de entrada: la misma todos los días o **una hora distinta por día**. En los días que no trabaja no aparece en Asistencia ni en el Excel; si marca igual, sale como “Libre” y sin atraso |
+| Días por defecto | Configuración | Solo pre-marcan los días al crear un empleado nuevo |
+| Vista del dashboard | hoy | Al entrar se ve solo el día de hoy; para más días: filtros o “Ver rápido” (Ayer, Últimos 7 / 30 días) |
 | Umbral facial | 0.50 | Distancia euclidiana máxima. Menor es más estricto. Si 2 empleados quedan bajo el umbral, se rechaza por ambigüedad |
 | Prueba de vida | fija | Girar la cabeza a la derecha, luego a la izquierda y mirar al centro. Sin parpadeo. Funciona aunque la webcam entregue la imagen en espejo. Si un intento se queda sin tiempo, se registra en Intentos fallidos con el giro alcanzado (para diagnóstico) |
 | Permiso | uno por día | *Todo el día*: el día figura como “Permiso” (sin atraso ni “Incompleto”). *Por horas*: si empieza antes de la hora de entrada, la llegada esperada pasa a ser el fin del permiso |

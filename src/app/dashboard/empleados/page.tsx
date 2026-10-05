@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { requireAdminSession } from "@/lib/auth";
 import { BIOMETRIC_LABEL, biometricStatus, embeddedCount } from "@/lib/employees";
-import { shortTime } from "@/lib/time";
+import { formatSchedule, scheduleFromRow } from "@/lib/attendance/schedule";
 import { Badge, EmptyState, Notice, PageHeader } from "@/components/ui";
 import { IconCamera, IconPlus } from "@/components/icons";
 
@@ -18,7 +18,7 @@ export default async function EmployeesPage(props: PageProps<"/dashboard/emplead
     supabase.from("branches").select("id, name").order("name"),
     supabase
       .from("employees")
-      .select("id, full_name, cedula, position, entry_time, active, branch_id, consent_at, consent_revoked_at, face_templates(count)")
+      .select("id, full_name, cedula, position, entry_time, work_days, entry_times, active, branch_id, consent_at, consent_revoked_at, face_templates(count)")
       .order("full_name"),
   ]);
 
@@ -82,7 +82,7 @@ export default async function EmployeesPage(props: PageProps<"/dashboard/emplead
                 <th className="th">Cédula</th>
                 <th className="th">Sucursal</th>
                 <th className="th">Cargo</th>
-                <th className="th">Entrada</th>
+                <th className="th">Horario</th>
                 <th className="th">Biometría</th>
                 <th className="th">Estado</th>
                 <th className="th text-right">Acciones</th>
@@ -101,7 +101,7 @@ export default async function EmployeesPage(props: PageProps<"/dashboard/emplead
                     <td className="td font-mono text-slate-600">{e.cedula}</td>
                     <td className="td">{branchName.get(e.branch_id) ?? "—"}</td>
                     <td className="td">{e.position}</td>
-                    <td className="td font-mono">{shortTime(e.entry_time)}</td>
+                    <td className="td text-sm whitespace-nowrap">{formatSchedule(scheduleFromRow(e))}</td>
                     <td className="td">
                       <Badge tone={status === "enrolado" ? "green" : status === "pendiente" ? "yellow" : "gray"}>
                         {BIOMETRIC_LABEL[status]}

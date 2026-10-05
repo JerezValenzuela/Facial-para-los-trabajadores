@@ -5,6 +5,7 @@ import { requireAdminSession } from "@/lib/auth";
 import { uuid } from "@/lib/validation";
 import { EVENT_LABEL, EVENT_ORDER } from "@/lib/attendance/events";
 import { STATUS_LABEL, summarizeDay } from "@/lib/attendance/calc";
+import { entryTimeFor, scheduleFromRow, worksOn } from "@/lib/attendance/schedule";
 import { signedEvidenceUrls } from "@/lib/evidence";
 import { formatDateLabel, formatMinutes, formatTime, isValidDateStr, todayInTz } from "@/lib/time";
 import { Badge, Notice, PageHeader } from "@/components/ui";
@@ -18,7 +19,7 @@ export default async function DayDetailPage(props: PageProps<"/dashboard/asisten
 
   const { supabase } = await requireAdminSession();
   const [{ data: emp }, { data: events }, { data: settings }, { data: branches }] = await Promise.all([
-    supabase.from("employees").select("id, full_name, entry_time, branch_id").eq("id", employeeId).maybeSingle(),
+    supabase.from("employees").select("id, full_name, entry_time, work_days, entry_times, branch_id").eq("id", employeeId).maybeSingle(),
     supabase
       .from("attendance_events")
       .select("id, event_type, occurred_at, branch_id, ip, match_distance, evidence_path")
@@ -30,17 +31,20 @@ export default async function DayDetailPage(props: PageProps<"/dashboard/asisten
   ]);
   if (!emp) notFound();
 
+  const schedule = scheduleFromRow(emp);
+  const workDay = worksOn(schedule, date);
   const byType = Object.fromEntries((events ?? []).map((e) => [e.event_type, new Date(e.occurred_at)]));
   const summary = summarizeDay(
     date,
     byType,
     {
-      entryTime: emp.entry_time,
+      entryTime: entryTimeFor(schedule, date),
       toleranceMinutes: settings?.entry_tolerance_minutes ?? 7,
       lunchAllowedMinutes: settings?.lunch_allowed_minutes ?? 60,
     },
     { today: todayInTz(), now: new Date() },
   );
+  if (!workDay) summary.lateMinutes = 0; // día libre: no hay hora esperada
   // URLs firmadas de 5 minutos: las miniaturas nunca son públicas.
   const urls = await signedEvidenceUrls((events ?? []).map((e) => e.evidence_path ?? "").filter(Boolean));
   const branchName = new Map((branches ?? []).map((b) => [b.id, b.name]));
@@ -50,7 +54,7 @@ export default async function DayDetailPage(props: PageProps<"/dashboard/asisten
       <Link href="/dashboard" className="text-sm text-slate-500 hover:text-slate-700">← Asistencia</Link>
       <PageHeader
         title={emp.full_name}
-        description={`${formatDateLabel(date)} · Horario de entrada ${emp.entry_time.slice(0, 5)}`}
+        description={`${formatDateLabel(date)} · ${workDay ? `Horario de entrada ${entryTimeFor(schedule, date)}` : "Día libre (no le tocaba trabajar)"}`}
       />
 
       <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-5">

@@ -8,7 +8,10 @@ export const metadata: Metadata = { title: "Nuevo empleado" };
 
 export default async function NewEmployeePage() {
   const { supabase } = await requireAdminSession();
-  const { data: branches } = await supabase.from("branches").select("id, name").eq("active", true).order("name");
+  const [{ data: branches }, { data: settings }] = await Promise.all([
+    supabase.from("branches").select("id, name").eq("active", true).order("name"),
+    supabase.from("settings").select("work_days").eq("id", 1).maybeSingle(),
+  ]);
   return (
     <div className="mx-auto max-w-2xl">
       <Link href="/dashboard/empleados" className="text-sm text-slate-500 hover:text-slate-700">← Empleados</Link>
@@ -17,7 +20,7 @@ export default async function NewEmployeePage() {
         description="Después de crearlo podrás registrar su consentimiento y enrolar su rostro."
       />
       <div className="card p-6">
-        <EmployeeForm branches={branches ?? []} />
+        <EmployeeForm branches={branches ?? []} defaultWorkDays={settings?.work_days} />
       </div>
     </div>
   );

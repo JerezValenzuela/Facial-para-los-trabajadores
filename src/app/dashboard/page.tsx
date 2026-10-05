@@ -2,7 +2,8 @@ import type { Metadata } from "next";
 import { requireAdminSession } from "@/lib/auth";
 import { filtersToQuery, MAX_RANGE_DAYS, parseReportFilters } from "@/lib/attendance/filters";
 import { loadReport } from "@/lib/attendance/report-data";
-import { formatDateLabel } from "@/lib/time";
+import Link from "next/link";
+import { addDays, formatDateLabel, todayInTz } from "@/lib/time";
 import { EmptyState, PageHeader } from "@/components/ui";
 import { IconDownload } from "@/components/icons";
 import { AttendanceTable } from "./attendance-table";
@@ -15,12 +16,19 @@ export default async function AttendancePage(props: PageProps<"/dashboard">) {
   const { supabase } = await requireAdminSession();
   const report = await loadReport(supabase, filters);
   const query = filtersToQuery(filters);
+  const today = todayInTz();
+  const range =
+    filters.from === filters.to
+      ? `${filters.from === today ? "Hoy, " : ""}${formatDateLabel(filters.from)}`
+      : `Del ${formatDateLabel(filters.from)} al ${formatDateLabel(filters.to)}`;
+  // Accesos rápidos que conservan la sucursal, el empleado y "solo novedades".
+  const quick = (from: string, to: string) => `/dashboard?${filtersToQuery({ ...filters, from, to })}`;
 
   return (
     <>
       <PageHeader
         title="Asistencia"
-        description={`Del ${formatDateLabel(filters.from)} al ${formatDateLabel(filters.to)} · Tolerancia ${report.settings.entry_tolerance_minutes} min · Almuerzo ${report.settings.lunch_allowed_minutes} min`}
+        description={`${range} · Tolerancia ${report.settings.entry_tolerance_minutes} min · Almuerzo ${report.settings.lunch_allowed_minutes} min`}
         actions={
           <a href={`/api/admin/export?${query}`} className="btn-primary">
             <IconDownload className="h-4 w-4" /> Descargar Excel
@@ -63,7 +71,14 @@ export default async function AttendancePage(props: PageProps<"/dashboard">) {
           Solo novedades
         </label>
         <button className="btn-secondary">Aplicar filtros</button>
-        <p className="text-xs text-slate-500 sm:col-span-2 lg:col-span-6">Rango máximo: {MAX_RANGE_DAYS} días.</p>
+        <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500 sm:col-span-2 lg:col-span-6">
+          <span>Ver rápido:</span>
+          <Link href={quick(today, today)} className="font-medium text-brand-700 hover:underline">Hoy</Link>
+          <Link href={quick(addDays(today, -1), addDays(today, -1))} className="font-medium text-brand-700 hover:underline">Ayer</Link>
+          <Link href={quick(addDays(today, -6), today)} className="font-medium text-brand-700 hover:underline">Últimos 7 días</Link>
+          <Link href={quick(addDays(today, -29), today)} className="font-medium text-brand-700 hover:underline">Últimos 30 días</Link>
+          <span className="text-slate-400">· Rango máximo: {MAX_RANGE_DAYS} días.</span>
+        </p>
       </form>
 
       <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-5">
@@ -84,7 +99,8 @@ export default async function AttendancePage(props: PageProps<"/dashboard">) {
       <p className="mt-3 text-xs text-slate-500">
         Filas en <span className="font-semibold text-red-700">rojo</span>: atraso o exceso de almuerzo. En{" "}
         <span className="font-semibold text-amber-700">amarillo</span>: marcaciones incompletas. En{" "}
-        <span className="font-semibold text-sky-700">celeste</span>: permiso todo el día. Toca una fila para ver sus fotos.
+        <span className="font-semibold text-sky-700">celeste</span>: permiso todo el día. “Libre” en Horario: marcó en un día
+        que no le toca trabajar (no cuenta atraso). Toca una fila para ver sus fotos.
         Horas en hora de Ecuador.
       </p>
     </>

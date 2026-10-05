@@ -127,6 +127,8 @@ describe("reporte diario", () => {
     branch_id: "b1",
     position: "Vendedora",
     entry_time: "08:00:00",
+    work_days: [1, 2, 3, 4, 5, 6],
+    entry_times: {},
     active: true,
     created_at: "2026-09-01T12:00:00Z",
   };
@@ -136,7 +138,6 @@ describe("reporte diario", () => {
     to: "2026-10-04",
     today: "2026-10-05",
     now: ec("2026-10-05", "12:00:00"),
-    workDays: [1, 2, 3, 4, 5, 6],
     toleranceMinutes: 7,
     lunchAllowedMinutes: 60,
   };
@@ -148,7 +149,7 @@ describe("reporte diario", () => {
     expect(rows.every((r) => r.status === "sin_marcaciones")).toBe(true);
   });
 
-  it("un domingo CON marcaciones sí aparece", () => {
+  it("un día libre CON marcaciones sí aparece, como “Libre” y sin atraso", () => {
     const rows = buildDailyReport({
       ...base,
       events: [
@@ -157,7 +158,36 @@ describe("reporte diario", () => {
     });
     const sunday = rows.find((r) => r.date === "2026-10-04");
     expect(sunday?.status).toBe("incompleto");
-    expect(sunday?.lateMinutes).toBe(23);
+    expect(sunday?.dayOff).toBe(true);
+    expect(sunday?.entryTime).toBe("Libre");
+    expect(sunday?.lateMinutes).toBe(0);
+    expect(sunday?.flagged).toBe(false);
+  });
+
+  it("cada empleado usa SUS días: uno que solo trabaja domingo no aparece entre semana", () => {
+    const rows = buildDailyReport({ ...base, employees: [{ ...employee, work_days: [7] }], events: [] });
+    expect(rows.map((r) => r.date)).toEqual(["2026-10-04"]);
+    expect(rows[0].entryTime).toBe("08:00");
+    expect(rows[0].dayOff).toBe(false);
+  });
+
+  it("hora distinta por día: el atraso se calcula con la hora de ese día", () => {
+    const emp = { ...employee, work_days: [4, 5, 6], entry_times: { "4": "07:00", "5": "07:00", "6": "09:00" } };
+    const rows = buildDailyReport({
+      ...base,
+      employees: [emp],
+      events: [
+        // jueves 1: entra 07:20 con horario 07:00 → 13 min de atraso (tolerancia 7)
+        { employee_id: "e1", event_type: "ENTRADA", occurred_at: ec("2026-10-01", "07:20:00").toISOString(), work_date: "2026-10-01", branch_id: "b1" },
+        // sábado 3: entra 08:50 con horario 09:00 → a tiempo
+        { employee_id: "e1", event_type: "ENTRADA", occurred_at: ec("2026-10-03", "08:50:00").toISOString(), work_date: "2026-10-03", branch_id: "b1" },
+      ],
+    });
+    const byDate = Object.fromEntries(rows.map((r) => [r.date, r]));
+    expect(byDate["2026-10-01"].entryTime).toBe("07:00");
+    expect(byDate["2026-10-01"].lateMinutes).toBe(13);
+    expect(byDate["2026-10-03"].entryTime).toBe("09:00");
+    expect(byDate["2026-10-03"].lateMinutes).toBe(0);
   });
 
   it("empleados inactivos sin marcaciones y fechas anteriores al alta no generan filas", () => {

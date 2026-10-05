@@ -19,13 +19,16 @@ function get(p: Params, key: string): string | undefined {
   return typeof v === "string" ? v : undefined;
 }
 
-/** Filtros del reporte desde la URL (validados; valores inválidos → por defecto). */
+/**
+ * Filtros del reporte desde la URL (validados; valores inválidos → por defecto).
+ * Por defecto se ve SOLO el día de hoy; para más días se usa el filtro.
+ */
 export function parseReportFilters(p: Params, now: Date = new Date()): ReportFilters {
   const today = todayInTz(now);
   let to = get(p, "hasta") ?? today;
-  let from = get(p, "desde") ?? addDays(today, -6);
   if (!isValidDateStr(to)) to = today;
-  if (!isValidDateStr(from)) from = addDays(to, -6);
+  let from = get(p, "desde") ?? to;
+  if (!isValidDateStr(from)) from = to;
   if (from > to) [from, to] = [to, from];
   if (addDays(from, MAX_RANGE_DAYS - 1) < to) from = addDays(to, -(MAX_RANGE_DAYS - 1));
 

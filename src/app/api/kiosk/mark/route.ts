@@ -3,6 +3,7 @@ import { markBodySchema } from "@/lib/kiosk/schemas";
 import { type FailedReason, kioskError, kioskGuard, logFailedAttempt, readJsonBody } from "@/lib/kiosk/guard";
 import { EVENT_LABEL, type AttendanceEventType } from "@/lib/attendance/events";
 import { computeLateMinutes, computeLunch } from "@/lib/attendance/calc";
+import { entryTimeFor, scheduleFromRow, worksOn } from "@/lib/attendance/schedule";
 import { businessCode, friendlyDbError } from "@/lib/db-errors";
 import { getSettings } from "@/lib/settings";
 import { supabaseAdmin } from "@/lib/supabase/admin";
@@ -73,7 +74,7 @@ export async function POST(req: Request) {
   const settings = await getSettings();
   const { data: emp } = await db
     .from("employees")
-    .select("full_name, entry_time, branches(name)")
+    .select("full_name, entry_time, work_days, entry_times, branches(name)")
     .eq("id", row.employee_id)
     .maybeSingle();
   const fullName = emp?.full_name ?? "";
@@ -81,7 +82,10 @@ export async function POST(req: Request) {
   let info: string | null = null;
   let warn = false;
 
-  if (eventType === "ENTRADA" && emp) {
+  const schedule = emp ? scheduleFromRow(emp) : null;
+  if (eventType === "ENTRADA" && schedule && !worksOn(schedule, row.work_date)) {
+    info = "Hoy es tu día libre · entrada registrada";
+  } else if (eventType === "ENTRADA" && emp && schedule) {
     // Un permiso de hoy que cubra la hora de entrada no cuenta como atraso.
     const { data: perm } = await db
       .from("permissions")
@@ -93,7 +97,7 @@ export async function POST(req: Request) {
       occurredAt,
       row.work_date,
       {
-        entryTime: emp.entry_time,
+        entryTime: entryTimeFor(schedule, row.work_date),
         toleranceMinutes: settings.entry_tolerance_minutes,
         lunchAllowedMinutes: settings.lunch_allowed_minutes,
       },

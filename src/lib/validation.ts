@@ -42,9 +42,44 @@ export const employeeSchema = z.object({
     .refine(isValidCedula, "Cédula ecuatoriana inválida (revisa los 10 dígitos)."),
   branch_id: uuid,
   position: trimmed(2, 80, "Cargo"),
-  entry_time: timeHHMM,
 });
 export type EmployeeInput = z.infer<typeof employeeSchema>;
+
+const HHMM_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
+
+/**
+ * Horario del empleado: días de trabajo y hora de entrada.
+ * - same_time = true  → una sola hora para todos sus días (entry_times = {}).
+ * - same_time = false → una hora por cada día elegido (errores en entry_time_N).
+ */
+export const scheduleSchema = z
+  .object({
+    work_days: z.array(z.coerce.number().int().min(1).max(7)).min(1, "Elige al menos un día de trabajo."),
+    same_time: z.boolean(),
+    entry_time: z.string().default(""),
+    day_times: z.record(z.string(), z.string()).default({}),
+  })
+  .superRefine((v, ctx) => {
+    if (v.same_time) {
+      if (!HHMM_RE.test(v.entry_time)) {
+        ctx.addIssue({ code: "custom", path: ["entry_time"], message: "Hora inválida (formato HH:MM)." });
+      }
+      return;
+    }
+    for (const d of new Set(v.work_days)) {
+      if (!HHMM_RE.test(v.day_times[String(d)] ?? "")) {
+        ctx.addIssue({ code: "custom", path: [`entry_time_${d}`], message: "Pon la hora de entrada de este día." });
+      }
+    }
+  })
+  .transform((v) => {
+    const work_days = [...new Set(v.work_days)].sort((a, b) => a - b);
+    if (v.same_time) return { work_days, entry_time: v.entry_time, entry_times: {} as Record<string, string> };
+    const entry_times: Record<string, string> = Object.fromEntries(work_days.map((d) => [String(d), v.day_times[String(d)]]));
+    // entry_time queda como la hora del primer día (referencia general).
+    return { work_days, entry_time: entry_times[String(work_days[0])], entry_times };
+  });
+export type ScheduleInput = z.infer<typeof scheduleSchema>;
 
 export const branchSchema = z.object({
   name: trimmed(2, 80, "Nombre"),
