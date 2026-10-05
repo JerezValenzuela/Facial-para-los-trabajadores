@@ -22,10 +22,19 @@ import { detectMobile, type DeviceSignals } from "@/lib/security/device";
 import Link from "next/link";
 import { KIOSK_ACTION_LABEL, type AttendanceEventType, type KioskOption } from "@/lib/attendance/events";
 import { formatPermissionHours, permissionEnd, PERMISSION_HOUR_OPTIONS } from "@/lib/attendance/permissions";
+import { ForgotExitWarning } from "./forgot-exit-warning";
 
 // ---------------------------------------------------------------------------
 // Tipos y constantes
 // ---------------------------------------------------------------------------
+type IdentifiedPhase = {
+  name: "identified";
+  ticket: string;
+  firstName: string;
+  options: KioskOption[];
+  suggested: AttendanceEventType | null;
+};
+
 type Phase =
   | { name: "boot"; note: string }
   | { name: "blocked"; title: string; message: string }
@@ -34,13 +43,9 @@ type Phase =
   | { name: "challenge"; steps: LivenessStep[]; stepIndex: number }
   | { name: "final"; total: number }
   | { name: "verifying" }
-  | {
-      name: "identified";
-      ticket: string;
-      firstName: string;
-      options: KioskOption[];
-      suggested: AttendanceEventType | null;
-    }
+  | IdentifiedPhase
+  /** Aviso rojo "olvidaste marcar tu salida" antes de mostrar las opciones. */
+  | { name: "reminder"; dayLabel: string; next: IdentifiedPhase }
   | { name: "marking"; firstName: string; label: string }
   | { name: "success"; firstName: string; title: string; time: string; info: string | null; warn: boolean }
   | {
@@ -68,6 +73,8 @@ type ChallengeState = {
 };
 
 const CHALLENGE_TIMEOUT_MS = 20_000;
+/** Duración del aviso "olvidaste marcar tu salida" (luego aparecen las opciones). */
+const FORGOT_EXIT_REMINDER_SECONDS = 5;
 /** Tiempo para elegir la marcación; si se acaba, hay que volver a escanear el rostro. */
 const CHOICE_SECONDS = 15;
 /** El panel de permiso necesita más tiempo (horas y hora de inicio); se reinicia con cada toque. */
@@ -189,11 +196,17 @@ export function KioskClient({ branchCode }: { branchCode?: string }) {
     let ms = 0;
     if (phase.name === "success") ms = SUCCESS_DISPLAY_MS;
     else if (phase.name === "notice") ms = NOTICE_DISPLAY_MS;
+    else if (phase.name === "reminder") ms = FORGOT_EXIT_REMINDER_SECONDS * 1000;
     else if (phase.name === "identified") ms = CHOICE_SECONDS * 1000;
     else if (phase.name === "permission" && !phase.sending) ms = PERMISSION_TIMEOUT_MS;
     else if (phase.name === "challenge" || phase.name === "final") ms = CHALLENGE_TIMEOUT_MS;
     if (!ms) return;
     const id = window.setTimeout(() => {
+      if (phase.name === "reminder") {
+        // Terminó el aviso: recién ahora empiezan los segundos para elegir.
+        setPhase(phase.next);
+        return;
+      }
       if (phase.name === "challenge" || phase.name === "final") {
         const ch = challengeRef.current;
         challengeRef.current = null;
@@ -290,13 +303,20 @@ export function KioskClient({ branchCode }: { branchCode?: string }) {
     const d = r.data;
     const employee = (d.employee as { firstName: string }) ?? { firstName: "" };
     if (d.status === "identified") {
-      setPhase({
+      const identified: IdentifiedPhase = {
         name: "identified",
         ticket: String(d.ticket),
         firstName: employee.firstName,
         options: (d.options as KioskOption[]) ?? [],
         suggested: (d.suggested as AttendanceEventType | null) ?? null,
-      });
+      };
+      const forgot = d.forgotExit as { label?: string } | null | undefined;
+      if (forgot?.label) {
+        beep(false);
+        setPhase({ name: "reminder", dayLabel: forgot.label, next: identified });
+      } else {
+        setPhase(identified);
+      }
     } else if (d.status === "cooldown") {
       setPhase({
         name: "notice",
@@ -737,6 +757,14 @@ export function KioskClient({ branchCode }: { branchCode?: string }) {
               No soy {phase.firstName} · cancelar
             </button>
           </div>
+        )}
+
+        {phase.name === "reminder" && (
+          <ForgotExitWarning
+            firstName={phase.next.firstName}
+            dayLabel={phase.dayLabel}
+            seconds={FORGOT_EXIT_REMINDER_SECONDS}
+          />
         )}
 
         {phase.name === "permission" && (

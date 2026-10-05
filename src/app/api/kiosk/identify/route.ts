@@ -11,10 +11,11 @@ import {
   verifyLiveness,
 } from "@/lib/face/liveness";
 import { kioskOptions } from "@/lib/attendance/events";
+import { FORGOT_EXIT_LOOKBACK_DAYS, findForgottenExit, forgottenExitDayLabel } from "@/lib/attendance/forgot-exit";
 import { getSettings } from "@/lib/settings";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { decodeJpegDataUrl, SCENE_MAX_BYTES, uploadEvidence } from "@/lib/evidence";
-import { todayInTz } from "@/lib/time";
+import { addDays, todayInTz } from "@/lib/time";
 import { logError } from "@/lib/log";
 
 /**
@@ -188,11 +189,23 @@ export async function POST(req: Request) {
   }
 
   // Marcaciones de hoy → las 4 opciones (Entrar, Salir a almuerzo, Regresar, Salir) con su estado.
-  const { data: todayEvents } = await db
-    .from("attendance_events")
-    .select("event_type, occurred_at")
-    .eq("employee_id", match.employee_id)
-    .eq("work_date", todayInTz());
+  // Y las de los últimos días → aviso si el último día trabajado quedó sin salida.
+  const today = todayInTz();
+  const [{ data: todayEvents }, { data: recentEvents }] = await Promise.all([
+    db
+      .from("attendance_events")
+      .select("event_type, occurred_at")
+      .eq("employee_id", match.employee_id)
+      .eq("work_date", today),
+    db
+      .from("attendance_events")
+      .select("work_date, event_type")
+      .eq("employee_id", match.employee_id)
+      .lt("work_date", today)
+      .gte("work_date", addDays(today, -FORGOT_EXIT_LOOKBACK_DAYS)),
+  ]);
+  // Solo en la primera identificación del día (antes de marcar nada hoy).
+  const forgottenDay = todayEvents?.length ? null : findForgottenExit(recentEvents ?? [], today);
 
   return NextResponse.json({
     ok: true,
@@ -201,6 +214,7 @@ export async function POST(req: Request) {
     employee: { firstName, fullName: match.full_name },
     options: kioskOptions(todayEvents ?? []),
     suggested: status.next_event,
+    forgotExit: forgottenDay ? { date: forgottenDay, label: forgottenExitDayLabel(forgottenDay, today) } : null,
     ticketTtlSeconds: 60,
   });
 }
