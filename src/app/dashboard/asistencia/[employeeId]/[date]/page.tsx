@@ -18,7 +18,7 @@ export default async function DayDetailPage(props: PageProps<"/dashboard/asisten
   if (!uuid.safeParse(employeeId).success || !isValidDateStr(date)) notFound();
 
   const { supabase } = await requireAdminSession();
-  const [{ data: emp }, { data: events }, { data: settings }, { data: branches }] = await Promise.all([
+  const [{ data: emp }, { data: events }, { data: settings }, { data: branches }, { data: observation }] = await Promise.all([
     supabase.from("employees").select("id, full_name, entry_time, work_days, entry_times, branch_id").eq("id", employeeId).maybeSingle(),
     supabase
       .from("attendance_events")
@@ -28,6 +28,7 @@ export default async function DayDetailPage(props: PageProps<"/dashboard/asisten
       .order("occurred_at"),
     supabase.from("settings").select("entry_tolerance_minutes, lunch_allowed_minutes").eq("id", 1).maybeSingle(),
     supabase.from("branches").select("id, name"),
+    supabase.from("observations").select("note").eq("employee_id", employeeId).eq("work_date", date).maybeSingle(),
   ]);
   if (!emp) notFound();
 
@@ -64,6 +65,14 @@ export default async function DayDetailPage(props: PageProps<"/dashboard/asisten
         <Info label="Exceso almuerzo" value={summary.lunchExcessMinutes ? <b className="text-red-600">{summary.lunchExcessMinutes} min</b> : "0"} />
         <Info label="Horas trabajadas" value={summary.workedMinutes === null ? "—" : formatMinutes(summary.workedMinutes)} />
       </div>
+
+      {observation?.note && (
+        <div className="mb-4">
+          <Notice tone="info" title="📝 Observación">
+            <span className="whitespace-pre-line">{observation.note}</span>
+          </Notice>
+        </div>
+      )}
 
       {summary.missing.length > 0 && summary.status !== "en_curso" && (
         <div className="mb-4">

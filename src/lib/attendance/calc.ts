@@ -28,7 +28,7 @@ export type DayRules = {
   lunchAllowedMinutes: number;
 };
 
-export type DayStatus = "completo" | "incompleto" | "sin_marcaciones" | "en_curso" | "permiso";
+export type DayStatus = "completo" | "incompleto" | "sin_marcaciones" | "en_curso" | "permiso" | "libre";
 
 export type DaySummary = {
   date: string;
@@ -178,6 +178,12 @@ export type ReportPermission = {
   hours: number | null;
 };
 
+export type ReportObservation = {
+  employee_id: string;
+  work_date: string;
+  note: string;
+};
+
 export type ReportRow = DaySummary & {
   employeeId: string;
   employeeName: string;
@@ -190,6 +196,8 @@ export type ReportRow = DaySummary & {
   dayOff: boolean;
   /** Foto del día para el Excel: la de la ENTRADA o, si no hay, la de la primera marcación. */
   photoPath: string | null;
+  /** Observación del administrador para ese día (o null). */
+  observation: string | null;
 };
 
 export function buildDailyReport(input: {
@@ -202,6 +210,7 @@ export function buildDailyReport(input: {
   toleranceMinutes: number;
   lunchAllowedMinutes: number;
   permissions?: ReportPermission[];
+  observations?: ReportObservation[];
 }): ReportRow[] {
   const byKey = new Map<string, Partial<Record<AttendanceEventType, Date>>>();
   for (const ev of input.events) {
@@ -226,6 +235,9 @@ export function buildDailyReport(input: {
     permissionByKey.set(`${p.employee_id}|${p.work_date}`, { kind: p.kind, startTime: p.start_time, hours: p.hours });
   }
 
+  const observationByKey = new Map<string, string>();
+  for (const o of input.observations ?? []) observationByKey.set(`${o.employee_id}|${o.work_date}`, o.note);
+
   const lastDay = input.to > input.today ? input.today : input.to;
   const dates = input.from <= lastDay ? dateRange(input.from, lastDay) : [];
   const rows: ReportRow[] = [];
@@ -236,9 +248,11 @@ export function buildDailyReport(input: {
     for (const date of dates) {
       const events = byKey.get(`${emp.id}|${date}`);
       const permission = permissionByKey.get(`${emp.id}|${date}`) ?? null;
+      const observation = observationByKey.get(`${emp.id}|${date}`) ?? null;
       const hasEvents = !!events && Object.keys(events).length > 0;
       const workDay = worksOn(schedule, date);
-      if (!hasEvents && !permission) {
+      // Un día con observación siempre se muestra (la escribió el administrador).
+      if (!hasEvents && !permission && !observation) {
         // Sin marcaciones: solo cuenta en SUS días de trabajo, con el empleado activo y ya registrado.
         if (!emp.active || date < createdDate || !workDay) continue;
       }
@@ -257,6 +271,7 @@ export function buildDailyReport(input: {
         // Día libre: no hay hora de entrada esperada, así que no hay atraso.
         summary.lateMinutes = 0;
         summary.flagged = summary.lunchExcessMinutes > 0;
+        if (!hasEvents && !permission) summary.status = "libre";
       }
       rows.push({
         ...summary,
@@ -268,6 +283,7 @@ export function buildDailyReport(input: {
         entryTime: workDay ? entryTimeFor(schedule, date) : "Libre",
         dayOff: !workDay,
         photoPath: photoByKey.get(`${emp.id}|${date}`)?.path ?? null,
+        observation,
       });
     }
   }
@@ -282,4 +298,5 @@ export const STATUS_LABEL: Record<DayStatus, string> = {
   sin_marcaciones: "Incompleto (sin marcaciones)",
   en_curso: "En curso",
   permiso: "Permiso (todo el día)",
+  libre: "Día libre",
 };

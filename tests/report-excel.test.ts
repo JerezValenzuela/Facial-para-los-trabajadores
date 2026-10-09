@@ -37,6 +37,7 @@ describe("exportación a Excel", () => {
         { employee_id: "e1", event_type: "SALIDA_FINAL", occurred_at: ec("2026-10-01", "18:00:00"), work_date: "2026-10-01", branch_id: "b1" },
         { employee_id: "e1", event_type: "ENTRADA", occurred_at: ec("2026-10-02", "07:55:00"), work_date: "2026-10-02", branch_id: "b1" },
       ],
+      observations: [{ employee_id: "e1", work_date: "2026-10-01", note: "Llegó tarde porque falló el bus" }],
       from: "2026-10-01",
       to: "2026-10-02",
       today: "2026-10-05",
@@ -75,6 +76,10 @@ describe("exportación a Excel", () => {
     expect(ws.getRow(4).getCell(16).value).toBe("Permiso");
     expect(ws.getRow(4).getCell(17).value).toBe("Estado");
     expect(ws.getRow(4).getCell(18).value).toBe("Foto");
+    expect(ws.getRow(4).getCell(19).value).toBe("Observaciones");
+    expect(red.getCell(19).value).toBe("Llegó tarde porque falló el bus");
+    expect(red.getCell(19).alignment?.wrapText).toBe(true);
+    expect(yellow.getCell(19).value ?? null).toBeNull();
     expect(ws.getRow(4).getCell(11).value).toBe("Almuerzo permitido");
     expect(ws.getRow(4).getCell(12).value).toBe("Almuerzo tomado");
     expect(yellow.getCell(17).value).toBe("Incompleto");

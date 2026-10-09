@@ -48,7 +48,7 @@ Las pruebas automáticas se corren con `npm test` (66 pruebas: estados, cálculo
 - [ ] Volver a marcar enseguida → “Acabas de marcar. Espera N segundos”.
 - [ ] Tras 60 s: lo ya marcado aparece con ✓ y su hora; lo anterior queda “Ya no disponible hoy”. Se puede saltar un paso (p. ej. Salir sin marcar almuerzo) pero no repetir ni retroceder.
 - [ ] “← Volver al inicio” (abajo) lleva a la pantalla para elegir Kiosco o Dashboard.
-- [ ] **Salida olvidada**: si ayer (o su último día trabajado) marcó Entrar pero no Salir, al reconocerlo sale 5 s la pantalla roja “AYER OLVIDASTE MARCAR TU SALIDA” y luego las opciones. Si ya marcó algo hoy, o ayer sí marcó Salir, no sale.
+- [ ] **Salida olvidada**: si ayer (o su último día trabajado) marcó Entrar pero no Salir, al reconocerlo sale 5 s la pantalla roja “AYER OLVIDASTE MARCAR TU SALIDA” y luego las opciones. Si ya marcó algo hoy, o ayer sí marcó Salir, no sale. Después del aviso la cuenta regresiva es de **35 s**, y aunque se haya echado para atrás a leer el aviso, las opciones no se cancelan solas al aparecer.
 - [ ] Tras “¡Hola, …!” se ve la cuenta regresiva de 15 s (roja en los últimos 5). Si no se elige nada, vuelve a la espera con “Se acabó el tiempo para elegir…” y hay que escanearse de nuevo.
 - [ ] **Permiso → Todo el día**: pantalla verde “Permiso registrado · Todo el día”; en el dashboard el día sale en celeste “Permiso (todo el día)”.
 - [ ] **Permiso → Por horas**: elegir horas y hora de inicio; muestra “de 08:00 a 10:00”. Si cubre la hora de entrada, al marcar Entrar no cuenta atraso hasta el fin del permiso.
@@ -67,6 +67,7 @@ Las pruebas automáticas se corren con `npm test` (66 pruebas: estados, cálculo
 - [ ] Todos los rechazos aparecen en **Intentos fallidos** con motivo, IP y miniatura (cuando aplica).
 
 ## 7. Dashboard de asistencia
+- [ ] **Observaciones**: en una fila, el botón **+** junto a la fecha abre “📝 Observación” (no abre las fotos). Guardar → la fila muestra 📝 y el texto bajo la fecha. Volver a abrir → editar o **Borrar**. Sale en “Solo novedades”, en el detalle del día y en la columna **Observaciones** del Excel.
 - [ ] Al entrar se ve **solo hoy** (“Hoy, lun …”). “Ver rápido: Ayer / Últimos 7 días / Últimos 30 días” cambian el rango y conservan sucursal y empleado.
 - [ ] **Horario por empleado**: en Empleados → Editar, desmarca “Dom” y guarda → ese empleado ya no aparece los domingos. Un empleado solo con “Dom” aparece solo los domingos.
 - [ ] Quita “Entra a la misma hora todos los días” → aparece una hora por cada día elegido; pon el sábado más tarde y verifica que el atraso del sábado usa esa hora. La lista de Empleados muestra “Lun–Vie 07:00 · Sáb 08:00”.

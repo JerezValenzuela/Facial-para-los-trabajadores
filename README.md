@@ -59,7 +59,7 @@ Stack: Next.js 16 (App Router) · TypeScript · Tailwind CSS 4 · Supabase (Post
 4. **Auditoría** completa: intentos fallidos, alertas por intentos repetidos y registro de acciones del administrador.
 
 ### Otras decisiones
-- **El empleado elige su marcación**: tras reconocerlo, el kiosco muestra “¡Hola, (nombre)! ¿Vas a…?” con **Entrar · Salir a almuerzo · Regresar de almuerzo · Salir**. También puede registrar un **Permiso**: *todo el día* o *por horas* (cuántas y desde qué hora). Si su **último día trabajado quedó sin “Salir”**, antes de las opciones ve 5 segundos una pantalla roja: “AYER (o EL SÁBADO 03/10) OLVIDASTE MARCAR TU SALIDA”; no bloquea nada y sale solo hasta que marque algo ese día. Tiene **15 segundos** para elegir (cuenta regresiva en pantalla); si no elige, se descarta y debe escanearse de nuevo. Lo ya marcado hoy aparece con ✓ y su hora. Regla “solo hacia adelante”: puede saltarse un paso olvidado (p. ej. salir sin marcar almuerzo, que quedará como *Incompleto*), pero nunca repetir ni retroceder.
+- **El empleado elige su marcación**: tras reconocerlo, el kiosco muestra “¡Hola, (nombre)! ¿Vas a…?” con **Entrar · Salir a almuerzo · Regresar de almuerzo · Salir**. También puede registrar un **Permiso**: *todo el día* o *por horas* (cuántas y desde qué hora). Si su **último día trabajado quedó sin “Salir”**, antes de las opciones ve 5 segundos una pantalla roja: “AYER (o EL SÁBADO 03/10) OLVIDASTE MARCAR TU SALIDA”; no bloquea nada y sale solo hasta que marque algo ese día; después del aviso tiene **35 segundos** (15 + 20 extra) para elegir. Normalmente tiene **15 segundos** para elegir (cuenta regresiva en pantalla); si no elige, se descarta y debe escanearse de nuevo. Lo ya marcado hoy aparece con ✓ y su hora. Regla “solo hacia adelante”: puede saltarse un paso olvidado (p. ej. salir sin marcar almuerzo, que quedará como *Incompleto*), pero nunca repetir ni retroceder.
 - **Registro atómico en la base de datos** (`kiosk_register_attendance`): bloqueo de fila, ticket de un solo uso, regla “solo hacia adelante” y restricción única `(empleado, día, evento)`. Ni dos clics simultáneos ni un replay pueden duplicar o desordenar marcaciones.
 - **Hora oficial = `now()` del servidor de base de datos.** La fecha laboral (`work_date`) se calcula por trigger en `America/Guayaquil`.
 - **Rate limiting en Postgres**: funciona aunque Vercel ejecute varias instancias en paralelo.
@@ -127,6 +127,7 @@ Las migraciones están versionadas en `supabase/migrations/` y **ya están aplic
 | `…0007_permisos_y_foto_escena.sql` | Permisos (todo el día / por horas) y foto de escena |
 | `…0008_eliminar_empleado.sql` | `admin_delete_employee`: borra al empleado y todo lo suyo en una transacción (solo el servidor) |
 | `…0009_horario_por_empleado.sql` | Horario por empleado: `work_days` (días que trabaja) y `entry_times` (hora de cada día) |
+| `…0010_observaciones.sql` | Tabla `observations`: una observación del administrador por empleado y día (solo admin, RLS) |
 
 Tablas: `branches`, `branch_ips`, `employees`, `face_templates`, `attendance_events`, `failed_attempts`, `alerts`, `settings` y `admin_users`, más tres de soporte: `kiosk_challenges` (retos de un solo uso), `rate_limits` y `audit_log`.
 
@@ -242,6 +243,7 @@ Todas se editan en **Dashboard → Configuración** (tabla `settings`):
 | Cooldown entre marcaciones | 60 s | Rechaza marcaciones del mismo empleado antes de ese tiempo |
 | Horario del empleado | en su ficha | Cada empleado tiene **sus días de trabajo** y su hora de entrada: la misma todos los días o **una hora distinta por día**. En los días que no trabaja no aparece en Asistencia ni en el Excel; si marca igual, sale como “Libre” y sin atraso |
 | Días por defecto | Configuración | Solo pre-marcan los días al crear un empleado nuevo |
+| Observaciones | 1 por empleado y día | Botón **+** junto a la fecha en Asistencia: escribir, editar o borrar lo que pasó ese día. Salen en la tabla, en el detalle del día, con “Solo novedades” y en la columna **Observaciones** del Excel |
 | Vista del dashboard | hoy | Al entrar se ve solo el día de hoy; para más días: filtros o “Ver rápido” (Ayer, Últimos 7 / 30 días) |
 | Umbral facial | 0.50 | Distancia euclidiana máxima. Menor es más estricto. Si 2 empleados quedan bajo el umbral, se rechaza por ambigüedad |
 | Prueba de vida | fija | Girar la cabeza a la derecha, luego a la izquierda y mirar al centro. Sin parpadeo. Funciona aunque la webcam entregue la imagen en espejo. Si un intento se queda sin tiempo, se registra en Intentos fallidos con el giro alcanzado (para diagnóstico) |

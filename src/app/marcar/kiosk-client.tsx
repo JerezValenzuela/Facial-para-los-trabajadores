@@ -33,6 +33,8 @@ type IdentifiedPhase = {
   firstName: string;
   options: KioskOption[];
   suggested: AttendanceEventType | null;
+  /** Segundos para elegir (15, o 35 si antes salió el aviso de salida olvidada). */
+  seconds: number;
 };
 
 type Phase =
@@ -77,6 +79,8 @@ const CHALLENGE_TIMEOUT_MS = 20_000;
 const FORGOT_EXIT_REMINDER_SECONDS = 5;
 /** Tiempo para elegir la marcación; si se acaba, hay que volver a escanear el rostro. */
 const CHOICE_SECONDS = 15;
+/** Segundos EXTRA para elegir cuando antes salió el aviso rojo (15 + 20 = 35). */
+const FORGOT_EXIT_EXTRA_SECONDS = 20;
 /** El panel de permiso necesita más tiempo (horas y hora de inicio); se reinicia con cada toque. */
 const PERMISSION_TIMEOUT_MS = 60_000;
 const SUCCESS_DISPLAY_MS = 6_000;
@@ -197,13 +201,16 @@ export function KioskClient({ branchCode }: { branchCode?: string }) {
     if (phase.name === "success") ms = SUCCESS_DISPLAY_MS;
     else if (phase.name === "notice") ms = NOTICE_DISPLAY_MS;
     else if (phase.name === "reminder") ms = FORGOT_EXIT_REMINDER_SECONDS * 1000;
-    else if (phase.name === "identified") ms = CHOICE_SECONDS * 1000;
+    else if (phase.name === "identified") ms = phase.seconds * 1000;
     else if (phase.name === "permission" && !phase.sending) ms = PERMISSION_TIMEOUT_MS;
     else if (phase.name === "challenge" || phase.name === "final") ms = CHALLENGE_TIMEOUT_MS;
     if (!ms) return;
     const id = window.setTimeout(() => {
       if (phase.name === "reminder") {
-        // Terminó el aviso: recién ahora empiezan los segundos para elegir.
+        // Terminó el aviso: recién ahora empiezan los segundos para elegir. El tiempo
+        // que no se vio la cara durante el aviso (se echan para atrás a leerlo) no
+        // cuenta: si no, la regla de "se fue" cancelaba las opciones al instante.
+        lastSeenRef.current = monotonicNow();
         setPhase(phase.next);
         return;
       }
@@ -309,11 +316,16 @@ export function KioskClient({ branchCode }: { branchCode?: string }) {
         firstName: employee.firstName,
         options: (d.options as KioskOption[]) ?? [],
         suggested: (d.suggested as AttendanceEventType | null) ?? null,
+        seconds: CHOICE_SECONDS,
       };
       const forgot = d.forgotExit as { label?: string } | null | undefined;
       if (forgot?.label) {
         beep(false);
-        setPhase({ name: "reminder", dayLabel: forgot.label, next: identified });
+        setPhase({
+          name: "reminder",
+          dayLabel: forgot.label,
+          next: { ...identified, seconds: CHOICE_SECONDS + FORGOT_EXIT_EXTRA_SECONDS },
+        });
       } else {
         setPhase(identified);
       }
@@ -734,7 +746,7 @@ export function KioskClient({ branchCode }: { branchCode?: string }) {
           <div className="flex w-full max-w-2xl flex-col items-center gap-4">
             <p className="text-4xl font-bold">¡Hola, {phase.firstName}! 👋</p>
             <p className="text-2xl text-slate-300">¿Vas a…?</p>
-            <ChoiceCountdown key={phase.ticket} seconds={CHOICE_SECONDS} />
+            <ChoiceCountdown key={phase.ticket} seconds={phase.seconds} />
             <div className="grid w-full grid-cols-1 gap-3 sm:grid-cols-2">
               {phase.options.map((o) => (
                 <OptionButton

@@ -3,7 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/supabase/database.types";
 import { DEFAULT_SETTINGS } from "@/lib/settings";
 import { todayInTz } from "@/lib/time";
-import { buildDailyReport, type ReportEvent, type ReportPermission, type ReportRow } from "./calc";
+import { buildDailyReport, type ReportEvent, type ReportObservation, type ReportPermission, type ReportRow } from "./calc";
 import type { ReportFilters } from "./filters";
 
 export type ReportData = {
@@ -63,20 +63,31 @@ export async function loadReport(
   }
 
   let permissions: ReportPermission[] = [];
+  let observations: ReportObservation[] = [];
   if (ids.length) {
-    const { data } = await supabase
-      .from("permissions")
-      .select("employee_id, work_date, kind, start_time, hours")
-      .gte("work_date", filters.from)
-      .lte("work_date", filters.to)
-      .in("employee_id", ids);
-    permissions = data ?? [];
+    const [{ data: perms }, { data: notes }] = await Promise.all([
+      supabase
+        .from("permissions")
+        .select("employee_id, work_date, kind, start_time, hours")
+        .gte("work_date", filters.from)
+        .lte("work_date", filters.to)
+        .in("employee_id", ids),
+      supabase
+        .from("observations")
+        .select("employee_id, work_date, note")
+        .gte("work_date", filters.from)
+        .lte("work_date", filters.to)
+        .in("employee_id", ids),
+    ]);
+    permissions = perms ?? [];
+    observations = notes ?? [];
   }
 
   let rows = buildDailyReport({
     employees: employees ?? [],
     events,
     permissions,
+    observations,
     from: filters.from,
     to: filters.to,
     today: todayInTz(now),
@@ -85,7 +96,9 @@ export async function loadReport(
     lunchAllowedMinutes: settings.lunch_allowed_minutes,
   });
   if (filters.onlyIssues) {
-    rows = rows.filter((r) => r.flagged || r.status === "incompleto" || r.status === "sin_marcaciones" || r.permission);
+    rows = rows.filter(
+      (r) => r.flagged || r.status === "incompleto" || r.status === "sin_marcaciones" || r.permission || r.observation,
+    );
   }
 
   return {

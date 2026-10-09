@@ -164,6 +164,24 @@ describe("reporte diario", () => {
     expect(sunday?.flagged).toBe(false);
   });
 
+  it("observaciones: van en su fila; un día libre con observación también aparece", () => {
+    const rows = buildDailyReport({
+      ...base,
+      events: [],
+      observations: [
+        { employee_id: "e1", work_date: "2026-10-02", note: "Pidió permiso pero no lo registró" },
+        { employee_id: "e1", work_date: "2026-10-04", note: "Vino a ayudar el domingo" },
+      ],
+    });
+    const byDate = Object.fromEntries(rows.map((r) => [r.date, r]));
+    expect(byDate["2026-10-02"].observation).toBe("Pidió permiso pero no lo registró");
+    expect(byDate["2026-10-01"].observation).toBeNull();
+    // 4 = domingo (no trabaja): sale por la observación, como "Día libre" y no como incompleto.
+    expect(byDate["2026-10-04"].observation).toBe("Vino a ayudar el domingo");
+    expect(byDate["2026-10-04"].status).toBe("libre");
+    expect(byDate["2026-10-04"].flagged).toBe(false);
+  });
+
   it("cada empleado usa SUS días: uno que solo trabaja domingo no aparece entre semana", () => {
     const rows = buildDailyReport({ ...base, employees: [{ ...employee, work_days: [7] }], events: [] });
     expect(rows.map((r) => r.date)).toEqual(["2026-10-04"]);

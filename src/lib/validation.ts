@@ -35,6 +35,9 @@ export const timeHHMM = z
 
 export const uuid = z.uuid("Identificador inválido.");
 
+/** Observación del administrador (vacía = borrar). */
+export const observationNote = z.string().trim().max(1000, "La observación puede tener máximo 1000 caracteres.");
+
 export const employeeSchema = z.object({
   full_name: trimmed(3, 120, "Nombre").regex(/^[\p{L}\s.'-]+$/u, "El nombre solo admite letras y espacios."),
   cedula: z

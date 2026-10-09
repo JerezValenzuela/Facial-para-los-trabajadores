@@ -7,12 +7,25 @@ import { formatPermission } from "@/lib/attendance/permissions";
 import { formatDateLabel, formatMinutes, formatTime } from "@/lib/time";
 import { Badge } from "@/components/ui";
 import { getDayEvidenceAction, type DayEvidence, type EvidenceItem } from "./evidence-actions";
+import { saveObservationAction } from "./observation-actions";
 
 type Selected = { employeeId: string; date: string; name: string };
 
-/** Tabla de asistencia: al tocar una fila se abren las fotos de ese día. */
+const rowKey = (employeeId: string, date: string) => `${employeeId}|${date}`;
+
+/**
+ * Tabla de asistencia: al tocar una fila se abren las fotos de ese día.
+ * El botón "+" junto a la fecha abre la observación del día (una por empleado y día).
+ */
 export function AttendanceTable({ rows, branchNames }: { rows: ReportRow[]; branchNames: Record<string, string> }) {
   const [selected, setSelected] = useState<Selected | null>(null);
+  const [noteTarget, setNoteTarget] = useState<(Selected & { initial: string }) | null>(null);
+  // Cambios recién guardados (se ven al instante, antes de que se recargue la tabla).
+  const [saved, setSaved] = useState<Record<string, string | null>>({});
+  const noteOf = (r: ReportRow) => {
+    const k = rowKey(r.employeeId, r.date);
+    return k in saved ? saved[k] : r.observation;
+  };
 
   return (
     <>
@@ -43,18 +56,42 @@ export function AttendanceTable({ rows, branchNames }: { rows: ReportRow[]; bran
                 key={`${r.employeeId}-${r.date}`}
                 r={r}
                 branch={branchNames[r.branchId] ?? "—"}
+                note={noteOf(r)}
                 onOpen={() => setSelected({ employeeId: r.employeeId, date: r.date, name: r.employeeName })}
+                onNote={() =>
+                  setNoteTarget({ employeeId: r.employeeId, date: r.date, name: r.employeeName, initial: noteOf(r) ?? "" })
+                }
               />
             ))}
           </tbody>
         </table>
       </div>
       {selected && <EvidenceModal selected={selected} onClose={() => setSelected(null)} />}
+      {noteTarget && (
+        <ObservationModal
+          target={noteTarget}
+          initial={noteTarget.initial}
+          onClose={() => setNoteTarget(null)}
+          onSaved={(note) => setSaved((cur) => ({ ...cur, [rowKey(noteTarget.employeeId, noteTarget.date)]: note }))}
+        />
+      )}
     </>
   );
 }
 
-function Row({ r, branch, onOpen }: { r: ReportRow; branch: string; onOpen: () => void }) {
+function Row({
+  r,
+  branch,
+  note,
+  onOpen,
+  onNote,
+}: {
+  r: ReportRow;
+  branch: string;
+  note: string | null;
+  onOpen: () => void;
+  onNote: () => void;
+}) {
   const incomplete = r.status === "incompleto" || r.status === "sin_marcaciones";
   const rowClass = r.flagged
     ? "bg-red-50 hover:bg-red-100/70"
@@ -70,7 +107,34 @@ function Row({ r, branch, onOpen }: { r: ReportRow; branch: string; onOpen: () =
       onClick={hasMarks ? onOpen : undefined}
       title={hasMarks ? "Ver las fotos de este día" : undefined}
     >
-      <td className="td text-slate-600">{formatDateLabel(r.date)}</td>
+      <td className="td text-slate-600">
+        <div className="flex items-start gap-2">
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation(); // no abre las fotos
+              onNote();
+            }}
+            title={note ? "Ver o editar la observación" : "Agregar observación"}
+            aria-label={note ? `Editar observación de ${r.employeeName}` : `Agregar observación de ${r.employeeName}`}
+            className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md border text-sm font-bold transition ${
+              note
+                ? "border-amber-300 bg-amber-100 text-amber-900 hover:bg-amber-200"
+                : "border-slate-300 bg-white text-slate-500 hover:border-brand-500 hover:text-brand-700"
+            }`}
+          >
+            {note ? "📝" : "+"}
+          </button>
+          <div className="min-w-0">
+            <span className="whitespace-nowrap">{formatDateLabel(r.date)}</span>
+            {note && (
+              <p className="mt-0.5 line-clamp-2 w-48 text-xs whitespace-pre-line text-slate-700" title={note}>
+                {note}
+              </p>
+            )}
+          </div>
+        </div>
+      </td>
       <td className="td font-medium">{r.employeeName}</td>
       <td className="td">{branch}</td>
       <td className="td font-mono text-slate-500">
@@ -104,13 +168,146 @@ function Row({ r, branch, onOpen }: { r: ReportRow; branch: string; onOpen: () =
       </td>
       <td className="td">
         <Badge
-          tone={r.status === "completo" ? "green" : r.status === "en_curso" || r.status === "permiso" ? "blue" : "yellow"}
+          tone={
+            r.status === "completo"
+              ? "green"
+              : r.status === "en_curso" || r.status === "permiso"
+                ? "blue"
+                : r.status === "libre"
+                  ? "gray"
+                  : "yellow"
+          }
         >
           {STATUS_LABEL[r.status]}
         </Badge>
       </td>
       <td className="td">{hasMarks ? <span className="text-brand-700">📷 Ver</span> : <span className="text-slate-400">—</span>}</td>
     </tr>
+  );
+}
+
+const NOTE_SUGGESTIONS = ["Llegó tarde porque ", "Pidió permiso pero no lo registró en el kiosco", "Falló la aplicación al marcar"];
+
+/** Ventana para escribir la observación del día (una por empleado y día). */
+function ObservationModal({
+  target,
+  initial,
+  onClose,
+  onSaved,
+}: {
+  target: Selected;
+  initial: string;
+  onClose: () => void;
+  onSaved: (note: string | null) => void;
+}) {
+  const [text, setText] = useState(initial);
+  const [error, setError] = useState<string | null>(null);
+  const [pending, startTransition] = useTransition();
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  function save(value: string) {
+    setError(null);
+    startTransition(async () => {
+      const r = await saveObservationAction(target.employeeId, target.date, value);
+      if (r.ok) {
+        onSaved(r.data?.note ?? null);
+        onClose();
+      } else {
+        setError(r.error);
+      }
+    });
+  }
+
+  const unchanged = text.trim() === initial.trim();
+  const canSave = !pending && !unchanged && (text.trim() !== "" || initial !== "");
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-900/60 p-4 sm:p-10"
+      role="dialog"
+      aria-modal="true"
+      aria-label={`Observación de ${target.name}`}
+      onClick={onClose}
+    >
+      <form
+        className="w-full max-w-lg rounded-2xl bg-white shadow-xl"
+        onClick={(e) => e.stopPropagation()}
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (canSave) save(text);
+        }}
+      >
+        <div className="flex items-start justify-between gap-4 border-b border-slate-200 px-6 py-4">
+          <div>
+            <h2 className="text-lg font-semibold text-slate-900">📝 Observación</h2>
+            <p className="text-sm text-slate-500">
+              {target.name} · {formatDateLabel(target.date)}
+            </p>
+          </div>
+          <button type="button" onClick={onClose} className="btn-ghost px-3 text-lg" aria-label="Cerrar">
+            ✕
+          </button>
+        </div>
+        <div className="space-y-3 px-6 py-5">
+          <textarea
+            autoFocus
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && (e.ctrlKey || e.metaKey) && canSave) save(text);
+            }}
+            rows={5}
+            maxLength={1000}
+            placeholder="Escribe lo que pasó ese día…"
+            aria-label="Observación"
+            className="input min-h-28 resize-y"
+          />
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-xs text-slate-500">Rápido:</span>
+            {NOTE_SUGGESTIONS.map((sug) => (
+              <button
+                key={sug}
+                type="button"
+                onClick={() => setText((cur) => (cur.trim() ? `${cur.trimEnd()}. ${sug}` : sug))}
+                className="rounded-full bg-slate-100 px-3 py-1 text-xs text-slate-700 hover:bg-slate-200"
+              >
+                {sug.trim()}
+              </button>
+            ))}
+          </div>
+          <p className="text-right text-xs text-slate-400">{text.length}/1000</p>
+          {error && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
+        </div>
+        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 px-6 py-4">
+          {initial ? (
+            <button
+              type="button"
+              disabled={pending}
+              onClick={() => {
+                if (window.confirm("¿Borrar esta observación?")) save("");
+              }}
+              className="btn-danger"
+            >
+              Borrar
+            </button>
+          ) : (
+            <span />
+          )}
+          <div className="flex gap-2">
+            <button type="button" onClick={onClose} className="btn-secondary">
+              Cancelar
+            </button>
+            <button type="submit" disabled={!canSave} className="btn-primary">
+              {pending ? "Guardando…" : "Guardar"}
+            </button>
+          </div>
+        </div>
+      </form>
+    </div>
   );
 }
 

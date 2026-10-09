@@ -480,6 +480,47 @@ export type Database = {
           },
         ]
       }
+      observations: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          employee_id: string
+          id: string
+          note: string
+          updated_at: string
+          updated_by: string | null
+          work_date: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          employee_id: string
+          id?: string
+          note: string
+          updated_at?: string
+          updated_by?: string | null
+          work_date: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          employee_id?: string
+          id?: string
+          note?: string
+          updated_at?: string
+          updated_by?: string | null
+          work_date?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "observations_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       permissions: {
         Row: {
           branch_id: string | null

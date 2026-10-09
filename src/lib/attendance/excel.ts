@@ -77,6 +77,7 @@ export async function buildAttendanceWorkbook(
     { header: "Permiso", key: "permission", width: 30 },
     { header: "Estado", key: "status", width: 26 },
     { header: "Foto", key: "photo", width: 10 },
+    { header: "Observaciones", key: "observation", width: 45 },
   ];
   ws.columns = columns.map((c) => ({ key: c.key, width: c.width }));
   const col = (key: string) => columns.findIndex((c) => c.key === key) + 1;
@@ -131,6 +132,7 @@ export async function buildAttendanceWorkbook(
       permission: formatPermission(r.permission) || null,
       status: STATUS_LABEL[r.status],
       photo: null,
+      observation: r.observation,
     };
     const incomplete = r.status === "incompleto" || r.status === "sin_marcaciones";
     columns.forEach((c, i) => {
@@ -138,7 +140,10 @@ export async function buildAttendanceWorkbook(
       cell.value = (values[c.key] ?? null) as ExcelJS.CellValue;
       if (c.fmt) cell.numFmt = c.fmt;
       cell.border = { top: BORDER, bottom: BORDER, left: BORDER, right: BORDER };
-      cell.alignment = { vertical: "middle", horizontal: i <= 4 ? "left" : "center" };
+      cell.alignment =
+        c.key === "observation"
+          ? { vertical: "middle", horizontal: "left", wrapText: true }
+          : { vertical: "middle", horizontal: i <= 4 ? "left" : "center" };
       if (r.flagged) cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: RED_FILL } };
       else if (incomplete) cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: YELLOW_FILL } };
       else if (r.status === "permiso") cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: BLUE_FILL } };
