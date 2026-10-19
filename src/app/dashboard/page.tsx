@@ -145,14 +145,19 @@ export default async function AttendancePage(props: PageProps<"/dashboard">) {
           defaultExitTime={report.settings.default_exit_time.slice(0, 5)}
         />
       ) : (
-        <AttendanceTable rows={report.rows} branchNames={Object.fromEntries(report.branchName)} />
+        <AttendanceTable
+          rows={report.rows}
+          branchNames={Object.fromEntries(report.branchName)}
+          lunchAllowedMinutes={report.settings.lunch_allowed_minutes}
+        />
       )}
       <p className="mt-3 text-xs text-slate-500">
         Filas en <span className="font-semibold text-red-700">rojo</span>: atraso o exceso de almuerzo. En{" "}
         <span className="font-semibold text-amber-700">amarillo</span>: marcaciones incompletas. En{" "}
         <span className="font-semibold text-sky-700">celeste</span>: permiso todo el día. “Libre” en Horario: marcó en un día
-        que no le toca trabajar (no cuenta atraso). Salida en <i>gris cursiva*</i>: olvidó marcar, se cuenta hasta las{" "}
-        {report.settings.default_exit_time.slice(0, 5)}. Toca una fila para ver sus fotos. Horas en hora de Ecuador.
+        que no le toca trabajar (no cuenta atraso). Valores con <i>*</i> en gris: no marcó bien; se cuenta hasta las{" "}
+        {report.settings.default_exit_time.slice(0, 5)} con {report.settings.lunch_allowed_minutes} min de almuerzo (horas
+        asumidas). Toca una fila para ver sus fotos. Horas en hora de Ecuador.
       </p>
     </>
   );

@@ -12,9 +12,14 @@
  * Días sin almuerzo (media jornada, ej. sábado): con Entrar + Salir el día está
  * completo y Horas trabajadas = salida − entrada (no se descuenta almuerzo).
  *
- * Salida olvidada: en un día ya terminado con entrada y almuerzo completos pero
- * sin "Salir", las horas se calculan hasta la hora de salida asumida (17:00 en
- * Configuración). Si marca, vale la hora real (más tarde = se le paga).
+ * No marcó bien (día ya terminado, con Entrar marcado):
+ *  - sin "Salir" → se cuenta hasta la hora de salida asumida (17:00 en Configuración);
+ *  - sin almuerzo marcado (o a medias) → se descuenta el almuerzo permitido (1 h);
+ *  - salió al almuerzo y no marcó nada más → solo trabajó hasta la salida al
+ *    almuerzo (se suman solo esos minutos, son reales: no se asume nada).
+ * El día sigue "Incompleto" (se ve que no marcó) y esas horas se suman aparte como
+ * "horas asumidas", para poder decidir si se pagan. Si marca, vale la hora real.
+ * En media jornada (sin almuerzo) no se asume la salida: se pagaría de más.
  *
  * Permisos (registrados por el empleado en el kiosco):
  *  - Todo el día: el día cuenta como "Permiso" (sin atraso ni "Incompleto").
@@ -60,6 +65,10 @@ export type DaySummary = {
   workedMinutes: number | null;
   /** Olvidó marcar "Salir": hora que se usó para las horas trabajadas (o null). */
   assumedExit: Date | null;
+  /** No marcó el almuerzo (o lo marcó a medias): se descontó el almuerzo permitido. */
+  assumedLunch: boolean;
+  /** Salió al almuerzo y no volvió a marcar: horas solo hasta la salida al almuerzo. */
+  leftAtLunch: boolean;
   /** false = día sin almuerzo (media jornada). */
   lunchExpected: boolean;
   status: DayStatus;
@@ -133,20 +142,42 @@ export function summarizeDay(
   // Día sin almuerzo y sin marcaciones de almuerzo: basta Entrar + Salir.
   const noLunchDay = !lunchExpected && !salidaAlmuerzo && !regresoAlmuerzo;
 
+  const dayOver = date < opts.today;
   let workedMinutes: number | null = null;
   let assumedExit: Date | null = null;
-  if (entrada && salidaAlmuerzo && regresoAlmuerzo && lunchMinutes !== null) {
+  let assumedLunch = false;
+  let leftAtLunch = false;
+  if (entrada && salidaAlmuerzo && !regresoAlmuerzo && !salidaFinal && dayOver) {
+    // Salió al almuerzo y no volvió a marcar: solo trabajó hasta el almuerzo.
+    workedMinutes = Math.max(0, minutesBetween(entrada, salidaAlmuerzo));
+    leftAtLunch = true;
+  } else if (entrada) {
+    // Almuerzo que se descuenta: el real; ninguno en media jornada; o, si no lo
+    // marcó (o lo marcó a medias) en un día ya terminado, el permitido (1 h).
+    let lunch: number | null = null;
+    if (salidaAlmuerzo && regresoAlmuerzo) lunch = lunchMinutes;
+    else if (noLunchDay) lunch = 0;
+    else if (lunchExpected && dayOver) {
+      lunch = rules.lunchAllowedMinutes;
+      assumedLunch = true;
+    }
+
     let exit = salidaFinal;
     // La salida asumida (17:00) es para jornadas con almuerzo; en media jornada
     // (ej. sábado) se pagaría de más, así que ahí no se asume.
-    if (!exit && lunchExpected && date < opts.today && rules.assumedExitTime) {
-      // Olvidó marcar "Salir" en un día ya terminado: se cuenta hasta la hora asumida.
+    if (!exit && lunchExpected && dayOver && rules.assumedExitTime) {
       const candidate = zonedToUtc(date, rules.assumedExitTime);
-      if (candidate > regresoAlmuerzo) exit = assumedExit = candidate;
+      const lastMark = [entrada, salidaAlmuerzo, regresoAlmuerzo].reduce<Date>((a, b) => (b && b > a ? b : a), entrada);
+      if (candidate > lastMark) exit = assumedExit = candidate;
     }
-    if (exit) workedMinutes = Math.max(0, minutesBetween(entrada, exit) - lunchMinutes);
-  } else if (entrada && salidaFinal && noLunchDay) {
-    workedMinutes = Math.max(0, minutesBetween(entrada, salidaFinal));
+
+    if (exit && lunch !== null) {
+      workedMinutes = Math.max(0, minutesBetween(entrada, exit) - lunch);
+    } else {
+      // No se pudo calcular: no queda nada asumido.
+      assumedExit = null;
+      assumedLunch = false;
+    }
   }
 
   const present = [entrada, salidaAlmuerzo, regresoAlmuerzo, salidaFinal];
@@ -174,6 +205,8 @@ export function summarizeDay(
     lateMinutes,
     workedMinutes,
     assumedExit,
+    assumedLunch,
+    leftAtLunch,
     lunchExpected,
     status,
     missing,
@@ -358,15 +391,19 @@ export type EmployeeTotals = {
   /** Días con entrada marcada. */
   daysWorked: number;
   daysComplete: number;
-  /** Días en que olvidó marcar "Salir" (horas contadas hasta la salida asumida). */
-  daysAssumedExit: number;
+  /** Días con entrada que no marcó completos (amarillo "Incompleto"). */
+  daysBadlyMarked: number;
   /** Días con entrada pero sin horas calculables (faltan marcaciones del almuerzo). */
   daysWithoutHours: number;
   /** Días de trabajo sin ninguna marcación ni permiso. */
   absences: number;
   permissionDays: number;
-  /** Horas REALES trabajadas (lo que se paga), en minutos. */
+  /** Total de horas (marcadas + asumidas), en minutos. */
   workedMinutes: number;
+  /** Horas de días bien marcados (reales). */
+  markedMinutes: number;
+  /** Horas de días que no marcó bien (hasta las 17:00 con 1 h de almuerzo). */
+  assumedMinutes: number;
   lateMinutes: number;
   lunchExcessMinutes: number;
   /** Atraso + exceso de almuerzo (informativo; ya no están en las horas reales). */
@@ -379,11 +416,13 @@ export function summarizeByEmployee(rows: ReportRow[]): { employees: EmployeeTot
   const blank = (): TotalsRow => ({
     daysWorked: 0,
     daysComplete: 0,
-    daysAssumedExit: 0,
+    daysBadlyMarked: 0,
     daysWithoutHours: 0,
     absences: 0,
     permissionDays: 0,
     workedMinutes: 0,
+    markedMinutes: 0,
+    assumedMinutes: 0,
     lateMinutes: 0,
     lunchExcessMinutes: 0,
     lostMinutes: 0,
@@ -392,11 +431,14 @@ export function summarizeByEmployee(rows: ReportRow[]): { employees: EmployeeTot
     const excess = r.lunchOngoing ? 0 : r.lunchExcessMinutes;
     if (r.entrada) t.daysWorked += 1;
     if (r.status === "completo") t.daysComplete += 1;
-    if (r.assumedExit) t.daysAssumedExit += 1;
+    const assumed = Boolean(r.assumedExit || r.assumedLunch);
+    if (r.entrada && r.status === "incompleto") t.daysBadlyMarked += 1;
     if (r.entrada && r.workedMinutes === null && r.status !== "en_curso") t.daysWithoutHours += 1;
     if (r.status === "sin_marcaciones") t.absences += 1;
     if (r.permission) t.permissionDays += 1;
     t.workedMinutes += r.workedMinutes ?? 0;
+    if (assumed) t.assumedMinutes += r.workedMinutes ?? 0;
+    else t.markedMinutes += r.workedMinutes ?? 0;
     t.lateMinutes += r.lateMinutes;
     t.lunchExcessMinutes += excess;
     t.lostMinutes += r.lateMinutes + excess;

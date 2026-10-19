@@ -29,13 +29,15 @@ export function EmployeeSummaryTable({
               <th className="th text-center">Días trabajados</th>
               <th className="th text-center">Faltas</th>
               <th className="th text-center">Permisos</th>
-              <th className="th text-center" title={`Se contaron sus horas hasta las ${defaultExitTime}`}>
-                Olvidó salida
+              <th className="th text-center" title="Días con entrada que no marcó completos (amarillo)">
+                No marcó bien
               </th>
-              <th className="th text-center" title="Tienen entrada pero falta una marcación del almuerzo">
+              <th className="th text-center" title="Días con entrada cuyas horas no se pueden calcular">
                 Sin horas
               </th>
-              <th className="th text-right">Horas trabajadas</th>
+              <th className="th text-right">Horas marcadas</th>
+              <th className="th text-right" title="Horas de los días que no marcó bien">Horas asumidas</th>
+              <th className="th text-right">Total horas</th>
               <th className="th text-right">Atraso entrada</th>
               <th className="th text-right">Exceso almuerzo</th>
               <th className="th text-right">Minutos perdidos</th>
@@ -66,15 +68,18 @@ export function EmployeeSummaryTable({
       </div>
       <ul className="mt-3 space-y-1 text-xs text-slate-500">
         <li>
-          <b>Horas trabajadas</b> = horas reales (de la entrada a la salida, menos el almuerzo que tomó). Es lo que se paga.
+          <b>Horas marcadas</b> = días bien marcados (de la entrada a la salida, menos el almuerzo que tomó).{" "}
+          <b>Horas asumidas</b> = días que no marcó bien: se cuenta hasta las {defaultExitTime} con 1 h de almuerzo.{" "}
+          <b>Total horas</b> = las dos juntas. Si decides no pagar los días mal marcados, paga solo las <b>horas marcadas</b>.
         </li>
         <li>
           <b>Minutos perdidos</b> = atraso de entrada + exceso de almuerzo. Ya están fuera de las horas reales: son
           informativos, no se restan otra vez.
         </li>
         <li>
-          <b>Olvidó salida</b>: sus horas se cuentan hasta las {defaultExitTime}. <b>Sin horas</b>: falta alguna marcación del
-          almuerzo; revisa esos días (toca el nombre).
+          <b>No marcó bien</b>: días con entrada que no marcó completos (amarillo). Si salió al almuerzo y no volvió a marcar,
+          solo se cuentan sus horas hasta el almuerzo. <b>Sin horas</b>: no se
+          pudieron calcular (por ejemplo, un sábado sin “Salir”); revisa esos días (toca el nombre).
         </li>
       </ul>
     </>
@@ -88,9 +93,13 @@ function Cells({ t, bold }: { t: TotalsRow; bold?: boolean }) {
       <td className={`td text-center ${strong}`}>{t.daysWorked}</td>
       <td className={`td text-center ${strong} ${t.absences ? "text-amber-700" : "text-slate-400"}`}>{t.absences}</td>
       <td className={`td text-center ${strong} ${t.permissionDays ? "" : "text-slate-400"}`}>{t.permissionDays}</td>
-      <td className={`td text-center ${strong} ${t.daysAssumedExit ? "text-slate-700" : "text-slate-400"}`}>{t.daysAssumedExit}</td>
+      <td className={`td text-center ${strong} ${t.daysBadlyMarked ? "font-semibold text-amber-700" : "text-slate-400"}`}>{t.daysBadlyMarked}</td>
       <td className={`td text-center ${strong} ${t.daysWithoutHours ? "font-semibold text-amber-700" : "text-slate-400"}`}>
         {t.daysWithoutHours}
+      </td>
+      <td className={`td text-right whitespace-nowrap ${strong}`}>{formatMinutes(t.markedMinutes)}</td>
+      <td className={`td text-right whitespace-nowrap ${strong} ${t.assumedMinutes ? "text-amber-700" : "text-slate-400"}`}>
+        {formatMinutes(t.assumedMinutes)}
       </td>
       <td className="td text-right text-base font-bold whitespace-nowrap text-slate-900">{formatMinutes(t.workedMinutes)}</td>
       <td className={`td text-right whitespace-nowrap ${strong} ${t.lateMinutes ? "text-red-600" : "text-slate-400"}`}>

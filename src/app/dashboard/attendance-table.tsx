@@ -17,7 +17,16 @@ const rowKey = (employeeId: string, date: string) => `${employeeId}|${date}`;
  * Tabla de asistencia: al tocar una fila se abren las fotos de ese día.
  * El botón "+" junto a la fecha abre la observación del día (una por empleado y día).
  */
-export function AttendanceTable({ rows, branchNames }: { rows: ReportRow[]; branchNames: Record<string, string> }) {
+export function AttendanceTable({
+  rows,
+  branchNames,
+  lunchAllowedMinutes = 60,
+}: {
+  rows: ReportRow[];
+  branchNames: Record<string, string>;
+  /** Almuerzo que se descuenta cuando no lo marcaron (se muestra con *). */
+  lunchAllowedMinutes?: number;
+}) {
   const [selected, setSelected] = useState<Selected | null>(null);
   const [noteTarget, setNoteTarget] = useState<(Selected & { initial: string }) | null>(null);
   // Cambios recién guardados (se ven al instante, antes de que se recargue la tabla).
@@ -58,6 +67,7 @@ export function AttendanceTable({ rows, branchNames }: { rows: ReportRow[]; bran
                 r={r}
                 branch={branchNames[r.branchId] ?? "—"}
                 note={noteOf(r)}
+                lunchAllowedMinutes={lunchAllowedMinutes}
                 onOpen={() => setSelected({ employeeId: r.employeeId, date: r.date, name: r.employeeName })}
                 onNote={() =>
                   setNoteTarget({ employeeId: r.employeeId, date: r.date, name: r.employeeName, initial: noteOf(r) ?? "" })
@@ -95,12 +105,14 @@ function Row({
   r,
   branch,
   note,
+  lunchAllowedMinutes,
   onOpen,
   onNote,
 }: {
   r: ReportRow;
   branch: string;
   note: string | null;
+  lunchAllowedMinutes: number;
   onOpen: () => void;
   onNote: () => void;
 }) {
@@ -167,8 +179,12 @@ function Row({
         )}
       </td>
       <td className="td">
-        {r.lunchMinutes !== null ? (
+        {r.lunchMinutes !== null && !r.assumedLunch ? (
           formatMinutes(r.lunchMinutes)
+        ) : r.assumedLunch ? (
+          <span className="text-slate-400 italic" title="No marcó el almuerzo: se descuenta el almuerzo permitido">
+            {formatMinutes(lunchAllowedMinutes)}*
+          </span>
         ) : !r.lunchExpected && r.entrada ? (
           <span className="text-xs text-slate-400" title="Día sin almuerzo (media jornada)">Sin almuerzo</span>
         ) : (
@@ -190,7 +206,22 @@ function Row({
           <span className="text-slate-400">0</span>
         )}
       </td>
-      <td className="td font-medium">{r.workedMinutes === null ? "—" : formatMinutes(r.workedMinutes)}</td>
+      <td className="td font-medium whitespace-nowrap">
+        {r.workedMinutes === null ? (
+          "—"
+        ) : r.leftAtLunch ? (
+          <span title="Salió al almuerzo y no volvió a marcar: horas solo hasta el almuerzo">
+            {formatMinutes(r.workedMinutes)}
+            <span className="block text-xs font-normal text-amber-700">hasta el almuerzo</span>
+          </span>
+        ) : r.assumedExit || r.assumedLunch ? (
+          <span className="text-slate-500" title="Horas asumidas: no marcó bien (hasta la salida asumida, con 1 h de almuerzo)">
+            {formatMinutes(r.workedMinutes)}*
+          </span>
+        ) : (
+          formatMinutes(r.workedMinutes)
+        )}
+      </td>
       <td className="td text-xs">
         {r.permission ? <Badge tone="blue">{formatPermission(r.permission)}</Badge> : <span className="text-slate-400">—</span>}
       </td>

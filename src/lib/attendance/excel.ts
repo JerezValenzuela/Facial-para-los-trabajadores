@@ -131,14 +131,26 @@ export async function buildAttendanceWorkbook(
       lunchIn: excelTime(r.regresoAlmuerzo),
       out: excelTime(r.salidaFinal ?? r.assumedExit),
       lunchAllowed: r.lunchExpected ? minutesToDuration(report.settings.lunch_allowed_minutes) : null,
-      lunch: r.lunchOngoing ? null : r.lunchMinutes === null && !r.lunchExpected && r.entrada ? "Sin almuerzo" : minutesToDuration(r.lunchMinutes),
+      lunch: r.lunchOngoing
+        ? null
+        : r.assumedLunch
+          ? minutesToDuration(report.settings.lunch_allowed_minutes)
+          : r.lunchMinutes === null && !r.lunchExpected && r.entrada
+            ? "Sin almuerzo"
+            : minutesToDuration(r.lunchMinutes),
       excess: r.lunchOngoing ? null : r.lunchExcessMinutes,
       late: r.lateMinutes,
       worked: minutesToDuration(r.workedMinutes),
       permission: formatPermission(r.permission) || null,
-      status: r.assumedExit
-        ? `${STATUS_LABEL[r.status]} · olvidó marcar salida (contado hasta ${formatTime(r.assumedExit)})`
-        : STATUS_LABEL[r.status],
+      status: r.leftAtLunch
+        ? `${STATUS_LABEL[r.status]} · salió al almuerzo y no volvió a marcar: horas solo hasta el almuerzo`
+        : r.assumedExit || r.assumedLunch
+          ? `${STATUS_LABEL[r.status]} · no marcó bien: horas asumidas` +
+            (r.assumedExit ? ` (salida ${formatTime(r.assumedExit)}` : " (") +
+            (r.assumedExit && r.assumedLunch ? ", " : "") +
+            (r.assumedLunch ? `${report.settings.lunch_allowed_minutes} min de almuerzo` : "") +
+            ")"
+          : STATUS_LABEL[r.status],
       photo: null,
       observation: r.observation,
     };
@@ -164,6 +176,15 @@ export async function buildAttendanceWorkbook(
       const out = row.getCell(col("out"));
       out.font = { italic: true, color: { argb: MUTED_TEXT } };
       out.note = `Olvidó marcar "Salir": sus horas se cuentan hasta las ${formatTime(r.assumedExit)}.`;
+    }
+    if (r.assumedLunch) {
+      const lunchCell = row.getCell(col("lunch"));
+      lunchCell.font = { italic: true, color: { argb: MUTED_TEXT } };
+      lunchCell.note = `No marcó el almuerzo: se descuenta el almuerzo permitido (${report.settings.lunch_allowed_minutes} min).`;
+    }
+    if (r.leftAtLunch) row.getCell(col("status")).alignment = { vertical: "middle", horizontal: "center", wrapText: true };
+    if (r.assumedExit || r.assumedLunch) {
+      row.getCell(col("worked")).font = { italic: true, color: { argb: MUTED_TEXT } };
       row.getCell(col("status")).alignment = { vertical: "middle", horizontal: "center", wrapText: true };
     }
 
@@ -207,7 +228,7 @@ export async function buildAttendanceWorkbook(
   const legendRow = 7 + report.rows.length;
   ws.getCell(legendRow, 1).value =
     "Rojo: atraso o exceso de almuerzo · Amarillo: marcaciones incompletas · Celeste: permiso todo el día · " +
-    "Salida final en gris cursiva: olvidó marcar (se cuenta hasta la hora de salida asumida) · Horas en America/Guayaquil · " +
+    "Gris cursiva: no marcó bien, horas asumidas (hasta la salida asumida, con el almuerzo permitido) · Horas en America/Guayaquil · " +
     "Foto: miniatura de la entrada del día (o de la primera marcación)";
   ws.getCell(legendRow, 1).font = { italic: true, size: 9, color: { argb: MUTED_TEXT } };
 
@@ -219,9 +240,11 @@ export async function buildAttendanceWorkbook(
     { header: "Días trabajados", key: "daysWorked", width: 11 },
     { header: "Faltas (sin marcar)", key: "absences", width: 11 },
     { header: "Días con permiso", key: "permissionDays", width: 11 },
-    { header: "Olvidó marcar salida (días)", key: "daysAssumedExit", width: 13 },
+    { header: "No marcó bien (días)", key: "daysBadlyMarked", width: 12 },
     { header: "Días sin horas (revisar)", key: "daysWithoutHours", width: 12 },
-    { header: "HORAS TRABAJADAS", key: "worked", width: 14 },
+    { header: "Horas marcadas", key: "marked", width: 12 },
+    { header: "Horas asumidas (no marcó bien)", key: "assumed", width: 14 },
+    { header: "TOTAL HORAS", key: "worked", width: 13 },
     { header: "Atraso entrada (min)", key: "late", width: 12 },
     { header: "Exceso almuerzo (min)", key: "excess", width: 12 },
     { header: "Minutos perdidos (total)", key: "lost", width: 13 },
@@ -233,15 +256,18 @@ export async function buildAttendanceWorkbook(
       daysWorked: t.daysWorked,
       absences: t.absences,
       permissionDays: t.permissionDays,
-      daysAssumedExit: t.daysAssumedExit,
+      daysBadlyMarked: t.daysBadlyMarked,
       daysWithoutHours: t.daysWithoutHours,
+      marked: t.markedMinutes / 1440,
+      assumed: t.assumedMinutes / 1440,
       worked: t.workedMinutes / 1440,
       late: t.lateMinutes,
       excess: t.lunchExcessMinutes,
       lost: t.lostMinutes,
     });
-    row.getCell("worked").numFmt = "[h]:mm";
+    for (const k of ["marked", "assumed", "worked"]) row.getCell(k).numFmt = "[h]:mm";
     row.getCell("worked").font = { bold: true };
+    if (t.assumedMinutes > 0) row.getCell("assumed").font = { italic: true, color: { argb: "FFB45309" } };
     row.eachCell((cell, n) => {
       cell.border = { top: BORDER, bottom: BORDER, left: BORDER, right: BORDER };
       cell.alignment = { vertical: "middle", horizontal: n <= 2 ? "left" : "center" };
@@ -266,10 +292,11 @@ export async function buildAttendanceWorkbook(
 
   const notes = [
     `Período: ${filters.from.split("-").reverse().join("/")} al ${filters.to.split("-").reverse().join("/")}  ·  Sucursal: ${branchFilter}  ·  Empleado: ${employeeFilter}`,
-    "HORAS TRABAJADAS = horas reales (de la entrada a la salida, menos el almuerzo que tomó). Es lo que se paga.",
+    "Horas marcadas = días bien marcados (de la entrada a la salida, menos el almuerzo que tomó).",
+    `Horas asumidas = días que no marcó bien: se cuenta hasta las ${report.settings.default_exit_time.slice(0, 5)} con ${report.settings.lunch_allowed_minutes} min de almuerzo. TOTAL HORAS = marcadas + asumidas. Si no se pagan los días mal marcados, pagar solo las horas marcadas.`,
     "Minutos perdidos = atraso de entrada + exceso de almuerzo. Ya están fuera de las horas reales: son informativos, NO se restan otra vez.",
-    `Olvidó marcar salida: sus horas se cuentan hasta las ${report.settings.default_exit_time.slice(0, 5)}. Si marca más tarde, se cuenta la hora real.`,
-    "Días sin horas (revisar): tienen entrada pero falta alguna marcación del almuerzo; no se pueden sumar sin revisar.",
+    "No marcó bien = días con entrada incompletos. Si salió al almuerzo y no volvió a marcar, solo se cuentan sus horas hasta el almuerzo (horas marcadas).",
+    "Días sin horas (revisar): no se pudieron calcular (ej. un sábado sin \"Salir\"); revisar.",
   ];
   notes.forEach((text, i) => {
     const cell = sum.getCell(totalsByEmployee.length + 4 + i, 1);

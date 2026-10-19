@@ -78,9 +78,17 @@ export default async function DayDetailPage(props: PageProps<"/dashboard/asisten
             ) : (
               <>
                 {formatMinutes(summary.workedMinutes)}
-                {summary.assumedExit && (
+                {summary.leftAtLunch && (
+                  <span className="block text-xs font-normal text-amber-700">
+                    Salió al almuerzo y no volvió a marcar: horas solo hasta el almuerzo
+                  </span>
+                )}
+                {(summary.assumedExit || summary.assumedLunch) && (
                   <span className="block text-xs font-normal text-slate-500">
-                    Olvidó marcar salida: contado hasta las {formatTime(summary.assumedExit)}
+                    Horas asumidas (no marcó bien):
+                    {summary.assumedExit ? ` salida a las ${formatTime(summary.assumedExit)}` : ""}
+                    {summary.assumedExit && summary.assumedLunch ? " y" : ""}
+                    {summary.assumedLunch ? ` ${settings?.lunch_allowed_minutes ?? 60} min de almuerzo` : ""}
                   </span>
                 )}
               </>

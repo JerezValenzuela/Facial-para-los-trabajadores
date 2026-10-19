@@ -85,11 +85,12 @@ describe("resumen del día", () => {
     expect(s.missing).toEqual(["SALIDA_FINAL"]);
   });
 
-  it("olvidó marcar el almuerzo → Incompleto", () => {
+  it("olvidó marcar el almuerzo → sigue Incompleto, pero se descuenta 1 h de almuerzo (horas asumidas)", () => {
     const s = summarizeDay(DAY, { ENTRADA: full.ENTRADA, SALIDA_FINAL: full.SALIDA_FINAL }, rules, opts);
     expect(s.status).toBe("incompleto");
     expect(s.lunchMinutes).toBeNull();
-    expect(s.workedMinutes).toBeNull();
+    expect(s.assumedLunch).toBe(true);
+    expect(s.workedMinutes).toBe(Math.floor((full.SALIDA_FINAL.getTime() - full.ENTRADA.getTime()) / 60000) - 60);
     expect(s.missing).toEqual(["SALIDA_ALMUERZO", "REGRESO_ALMUERZO"]);
   });
 
@@ -153,10 +154,11 @@ describe("sábado sin almuerzo (media jornada)", () => {
     expect(s.lunchExpected).toBe(false);
   });
 
-  it("un día normal (con almuerzo) con solo Entrar y Salir sigue incompleto, sin horas", () => {
+  it("un día normal (con almuerzo) con solo Entrar y Salir sigue incompleto y se le descuenta 1 h de almuerzo", () => {
     const s = summarizeDay(SAT, { ENTRADA: ec(SAT, "07:10:00"), SALIDA_FINAL: ec(SAT, "13:02:00") }, { ...half, lunchExpected: true }, after);
     expect(s.status).toBe("incompleto");
-    expect(s.workedMinutes).toBeNull();
+    expect(s.workedMinutes).toBe(352 - 60);
+    expect(s.assumedLunch).toBe(true);
   });
 
   it("si el sábado olvida marcar Salir, no se asumen las 17:00 (se pagaría de más)", () => {
@@ -242,10 +244,54 @@ describe("salida olvidada: se cuenta hasta las 17:00", () => {
     expect(s.assumedExit).toBeNull();
   });
 
-  it("sin marcaciones del almuerzo no se inventan horas", () => {
-    const s = summarizeDay(DAY, { ENTRADA: ec(DAY, "08:00:00") }, r, later);
+  it("solo marcó Entrar (como Luis): se cuenta hasta las 17:00 con 1 h de almuerzo, y sigue Incompleto", () => {
+    const s = summarizeDay(DAY, { ENTRADA: ec(DAY, "06:55:00") }, r, later);
+    expect(s.workedMinutes).toBe(10 * 60 + 5 - 60); // 06:55 → 17:00 = 10 h 05, menos 1 h = 9 h 05
+    expect(s.assumedExit?.toISOString()).toBe(ec(DAY, "17:00:00").toISOString());
+    expect(s.assumedLunch).toBe(true);
+    expect(s.status).toBe("incompleto");
+    expect(s.missing).toEqual(["SALIDA_ALMUERZO", "REGRESO_ALMUERZO", "SALIDA_FINAL"]);
+  });
+
+  it("salió al almuerzo y no volvió a marcar: solo trabajó hasta el almuerzo (08:00 → 13:00 = 5 h)", () => {
+    const s = summarizeDay(DAY, { ENTRADA: ec(DAY, "08:00:00"), SALIDA_ALMUERZO: ec(DAY, "13:00:00") }, r, later);
+    expect(s.workedMinutes).toBe(300);
+    expect(s.leftAtLunch).toBe(true);
+    expect(s.assumedLunch).toBe(false);
+    expect(s.assumedExit).toBeNull();
+    expect(s.status).toBe("incompleto");
+  });
+
+  it("salió al almuerzo, no marcó el regreso pero sí la salida: se descuenta 1 h y vale su salida real", () => {
+    const s = summarizeDay(
+      DAY,
+      { ENTRADA: ec(DAY, "08:00:00"), SALIDA_ALMUERZO: ec(DAY, "13:00:00"), SALIDA_FINAL: ec(DAY, "17:30:00") },
+      r,
+      later,
+    );
+    expect(s.workedMinutes).toBe(9 * 60 + 30 - 60);
+    expect(s.assumedLunch).toBe(true);
+    expect(s.leftAtLunch).toBe(false);
+  });
+
+  it("hoy, si está en el almuerzo, no se corta nada (puede volver)", () => {
+    const s = summarizeDay(DAY, { ENTRADA: ec(DAY, "08:00:00"), SALIDA_ALMUERZO: ec(DAY, "13:00:00") }, r, { today: DAY, now: ec(DAY, "13:30:00") });
+    expect(s.workedMinutes).toBeNull();
+    expect(s.leftAtLunch).toBe(false);
+    expect(s.lunchOngoing).toBe(true);
+  });
+
+  it("si entró después de las 17:00 y no marcó salida, no se inventan horas", () => {
+    const s = summarizeDay(DAY, { ENTRADA: ec(DAY, "19:59:00") }, r, later);
     expect(s.workedMinutes).toBeNull();
     expect(s.assumedExit).toBeNull();
+    expect(s.assumedLunch).toBe(false);
+  });
+
+  it("hoy (día en curso) no se asume el almuerzo ni la salida", () => {
+    const s = summarizeDay(DAY, { ENTRADA: ec(DAY, "08:00:00"), SALIDA_FINAL: ec(DAY, "13:00:00") }, r, { today: DAY, now: ec(DAY, "14:00:00") });
+    expect(s.workedMinutes).toBeNull();
+    expect(s.assumedLunch).toBe(false);
   });
 
   it("si regresó del almuerzo después de las 17:00, no se asume", () => {
@@ -426,7 +472,9 @@ describe("resumen por empleado (totales del período)", () => {
     expect(ana.lunchExcessMinutes).toBe(2);
     expect(ana.lostMinutes).toBe(15);
     expect(ana.daysWorked).toBe(2);
-    expect(ana.daysAssumedExit).toBe(1);
+    expect(ana.daysBadlyMarked).toBe(1);
+    expect(ana.markedMinutes).toBe(448); // día bien marcado
+    expect(ana.assumedMinutes).toBe(480); // día que olvidó "Salir"
     expect(ana.absences).toBe(0);
 
     // Beto: 9 h 30 − 1 h = 8 h 30 (510); el viernes es falta
@@ -435,6 +483,7 @@ describe("resumen por empleado (totales del período)", () => {
     expect(beto.absences).toBe(1);
 
     expect(total.workedMinutes).toBe(448 + 480 + 510);
+    expect(total.markedMinutes + total.assumedMinutes).toBe(total.workedMinutes);
     expect(total.lostMinutes).toBe(15);
     expect(total.daysWorked).toBe(3);
     expect(employees.map((e) => e.employeeName)).toEqual(["Ana", "Beto"]);
