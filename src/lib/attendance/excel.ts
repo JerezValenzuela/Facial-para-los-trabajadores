@@ -1,10 +1,10 @@
 import "server-only";
 import ExcelJS from "exceljs";
-import { STATUS_LABEL, type ReportRow } from "./calc";
+import { STATUS_LABEL, summarizeByEmployee, type ReportRow } from "./calc";
 import { formatPermission } from "./permissions";
 import type { ReportData } from "./report-data";
 import type { ReportFilters } from "./filters";
-import { formatDateTime, TZ } from "@/lib/time";
+import { formatDateTime, formatTime, TZ } from "@/lib/time";
 
 const RED_FILL = "FFFDE2E2";
 const RED_TEXT = "FFB91C1C";
@@ -39,14 +39,19 @@ function minutesToDuration(min: number | null): number | null {
 const PHOTO_PX = 56;
 const PHOTO_ROW_HEIGHT = 46; // puntos (≈ 61 px)
 
+const TOTAL_FILL = "FFFFEDD5";
+const MUTED_TEXT = "FF64748B";
+
 /**
  * Libro Excel con formato profesional; respeta exactamente los filtros del dashboard.
  * `photos`: miniaturas JPEG por ruta de evidencia (las descarga la ruta de exportación).
+ * `openSummary`: el archivo se abre directamente en la hoja "Resumen por empleado".
  */
 export async function buildAttendanceWorkbook(
   report: ReportData,
   filters: ReportFilters,
   photos: Map<string, Buffer> = new Map(),
+  options: { openSummary?: boolean } = {},
 ): Promise<Buffer> {
   const wb = new ExcelJS.Workbook();
   wb.creator = "JerezCons Asistencia";
@@ -97,6 +102,7 @@ export async function buildAttendanceWorkbook(
     `  ·  Sucursal: ${branchFilter}  ·  Empleado: ${employeeFilter}` +
     `${filters.onlyIssues ? "  ·  Solo novedades" : ""}` +
     `  ·  Tolerancia: ${report.settings.entry_tolerance_minutes} min  ·  Almuerzo permitido: ${report.settings.lunch_allowed_minutes} min` +
+    ` (+${report.settings.lunch_tolerance_minutes} min de tolerancia)  ·  Salida si olvidan marcar: ${report.settings.default_exit_time.slice(0, 5)}` +
     `  ·  Generado: ${formatDateTime(new Date())} (hora de Ecuador)`;
   ws.getCell(2, 1).font = { size: 10, color: { argb: "FF475569" } };
 
@@ -123,14 +129,16 @@ export async function buildAttendanceWorkbook(
       in: excelTime(r.entrada),
       lunchOut: excelTime(r.salidaAlmuerzo),
       lunchIn: excelTime(r.regresoAlmuerzo),
-      out: excelTime(r.salidaFinal),
+      out: excelTime(r.salidaFinal ?? r.assumedExit),
       lunchAllowed: minutesToDuration(report.settings.lunch_allowed_minutes),
       lunch: r.lunchOngoing ? null : minutesToDuration(r.lunchMinutes),
       excess: r.lunchOngoing ? null : r.lunchExcessMinutes,
       late: r.lateMinutes,
       worked: minutesToDuration(r.workedMinutes),
       permission: formatPermission(r.permission) || null,
-      status: STATUS_LABEL[r.status],
+      status: r.assumedExit
+        ? `${STATUS_LABEL[r.status]} · olvidó marcar salida (contado hasta ${formatTime(r.assumedExit)})`
+        : STATUS_LABEL[r.status],
       photo: null,
       observation: r.observation,
     };
@@ -151,6 +159,13 @@ export async function buildAttendanceWorkbook(
     // Minutos en exceso bien visibles.
     if (r.lunchExcessMinutes > 0 && !r.lunchOngoing) row.getCell(col("excess")).font = { bold: true, color: { argb: RED_TEXT } };
     if (r.lateMinutes > 0) row.getCell(col("late")).font = { bold: true, color: { argb: RED_TEXT } };
+    if (r.assumedExit) {
+      // Salida asumida (olvidó marcar): en cursiva gris y con nota.
+      const out = row.getCell(col("out"));
+      out.font = { italic: true, color: { argb: MUTED_TEXT } };
+      out.note = `Olvidó marcar "Salir": sus horas se cuentan hasta las ${formatTime(r.assumedExit)}.`;
+      row.getCell(col("status")).alignment = { vertical: "middle", horizontal: "center", wrapText: true };
+    }
 
     // Foto del trabajador (miniatura de su marcación de ese día), al lado del estado.
     const jpeg = r.photoPath ? photos.get(r.photoPath) : undefined;
@@ -171,53 +186,98 @@ export async function buildAttendanceWorkbook(
 
   ws.autoFilter = { from: { row: 4, column: 1 }, to: { row: 4 + Math.max(report.rows.length, 1), column: columns.length } };
 
-  const legendRow = 6 + report.rows.length;
-  ws.getCell(legendRow, 1).value = "Rojo: atraso o exceso de almuerzo · Amarillo: marcaciones incompletas · Celeste: permiso todo el día · Horas en America/Guayaquil · Foto: miniatura de la entrada del día (o de la primera marcación)";
-  ws.getCell(legendRow, 1).font = { italic: true, size: 9, color: { argb: "FF64748B" } };
+  const { employees: totalsByEmployee, total } = summarizeByEmployee(report.rows);
 
-  // ------------------------------------------------------------------ Resumen
+  // Fila TOTAL (fuera del autofiltro): suma de horas, excesos y atrasos del período filtrado.
+  const totalRow = ws.getRow(5 + report.rows.length);
+  totalRow.getCell(col("name")).value = `TOTAL (${report.rows.length} ${report.rows.length === 1 ? "fila" : "filas"})`;
+  totalRow.getCell(col("excess")).value = total.lunchExcessMinutes;
+  totalRow.getCell(col("late")).value = total.lateMinutes;
+  totalRow.getCell(col("worked")).value = minutesToDuration(total.workedMinutes);
+  totalRow.getCell(col("worked")).numFmt = "[h]:mm";
+  columns.forEach((_, i) => {
+    const cell = totalRow.getCell(i + 1);
+    cell.font = { bold: true };
+    cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: TOTAL_FILL } };
+    cell.border = { top: { style: "medium", color: { argb: HEADER_FILL } }, bottom: BORDER };
+    cell.alignment = { vertical: "middle", horizontal: i <= 4 ? "left" : "center" };
+  });
+  totalRow.height = 22;
+
+  const legendRow = 7 + report.rows.length;
+  ws.getCell(legendRow, 1).value =
+    "Rojo: atraso o exceso de almuerzo · Amarillo: marcaciones incompletas · Celeste: permiso todo el día · " +
+    "Salida final en gris cursiva: olvidó marcar (se cuenta hasta la hora de salida asumida) · Horas en America/Guayaquil · " +
+    "Foto: miniatura de la entrada del día (o de la primera marcación)";
+  ws.getCell(legendRow, 1).font = { italic: true, size: 9, color: { argb: MUTED_TEXT } };
+
+  // ------------------------------------------------------------------ Resumen por empleado
   const sum = wb.addWorksheet("Resumen por empleado", { views: [{ state: "frozen", ySplit: 1 }] });
   sum.columns = [
     { header: "Empleado", key: "name", width: 30 },
     { header: "Sucursal", key: "branch", width: 14 },
-    { header: "Días con registros", key: "days", width: 12 },
-    { header: "Días completos", key: "complete", width: 12 },
-    { header: "Días incompletos", key: "incomplete", width: 12 },
-    { header: "Atrasos (veces)", key: "lateCount", width: 12 },
-    { header: "Atraso total (min)", key: "lateTotal", width: 13 },
-    { header: "Excesos almuerzo (veces)", key: "excessCount", width: 13 },
-    { header: "Exceso total (min)", key: "excessTotal", width: 13 },
-    { header: "Horas trabajadas", key: "worked", width: 13 },
+    { header: "Días trabajados", key: "daysWorked", width: 11 },
+    { header: "Faltas (sin marcar)", key: "absences", width: 11 },
+    { header: "Días con permiso", key: "permissionDays", width: 11 },
+    { header: "Olvidó marcar salida (días)", key: "daysAssumedExit", width: 13 },
+    { header: "Días sin horas (revisar)", key: "daysWithoutHours", width: 12 },
+    { header: "HORAS TRABAJADAS", key: "worked", width: 14 },
+    { header: "Atraso entrada (min)", key: "late", width: 12 },
+    { header: "Exceso almuerzo (min)", key: "excess", width: 12 },
+    { header: "Minutos perdidos (total)", key: "lost", width: 13 },
   ];
-  const agg = new Map<string, { name: string; branch: string; days: number; complete: number; incomplete: number; lateCount: number; lateTotal: number; excessCount: number; excessTotal: number; worked: number }>();
-  for (const r of report.rows) {
-    const a = agg.get(r.employeeId) ?? {
-      name: r.employeeName,
-      branch: report.branchName.get(r.branchId) ?? "",
-      days: 0, complete: 0, incomplete: 0, lateCount: 0, lateTotal: 0, excessCount: 0, excessTotal: 0, worked: 0,
-    };
-    if (r.status !== "sin_marcaciones") a.days += 1;
-    if (r.status === "completo") a.complete += 1;
-    if (r.status === "incompleto" || r.status === "sin_marcaciones") a.incomplete += 1;
-    if (r.lateMinutes > 0) { a.lateCount += 1; a.lateTotal += r.lateMinutes; }
-    if (r.lunchExcessMinutes > 0 && !r.lunchOngoing) { a.excessCount += 1; a.excessTotal += r.lunchExcessMinutes; }
-    a.worked += r.workedMinutes ?? 0;
-    agg.set(r.employeeId, a);
-  }
-  [...agg.values()]
-    .sort((x, y) => x.name.localeCompare(y.name, "es"))
-    .forEach((a) => {
-      const row = sum.addRow({ ...a, worked: a.worked / 1440 });
-      row.getCell("worked").numFmt = "[h]:mm";
-      if (a.lateTotal > 0) row.getCell("lateTotal").font = { bold: true, color: { argb: RED_TEXT } };
-      if (a.excessTotal > 0) row.getCell("excessTotal").font = { bold: true, color: { argb: RED_TEXT } };
+  const summaryRow = (t: (typeof totalsByEmployee)[number] | typeof total, name: string, branch: string) => {
+    const row = sum.addRow({
+      name,
+      branch,
+      daysWorked: t.daysWorked,
+      absences: t.absences,
+      permissionDays: t.permissionDays,
+      daysAssumedExit: t.daysAssumedExit,
+      daysWithoutHours: t.daysWithoutHours,
+      worked: t.workedMinutes / 1440,
+      late: t.lateMinutes,
+      excess: t.lunchExcessMinutes,
+      lost: t.lostMinutes,
     });
+    row.getCell("worked").numFmt = "[h]:mm";
+    row.getCell("worked").font = { bold: true };
+    row.eachCell((cell, n) => {
+      cell.border = { top: BORDER, bottom: BORDER, left: BORDER, right: BORDER };
+      cell.alignment = { vertical: "middle", horizontal: n <= 2 ? "left" : "center" };
+    });
+    if (t.lostMinutes > 0) row.getCell("lost").font = { bold: true, color: { argb: RED_TEXT } };
+    if (t.daysWithoutHours > 0) row.getCell("daysWithoutHours").font = { bold: true, color: { argb: "FFB45309" } };
+    return row;
+  };
+  for (const e of totalsByEmployee) summaryRow(e, e.employeeName, report.branchName.get(e.branchId) ?? "");
+  const grand = summaryRow(total, "TOTAL", "");
+  grand.eachCell((cell) => {
+    cell.font = { ...(cell.font ?? {}), bold: true };
+    cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: TOTAL_FILL } };
+    cell.border = { top: { style: "medium", color: { argb: HEADER_FILL } }, bottom: BORDER, left: BORDER, right: BORDER };
+  });
   sum.getRow(1).eachCell((cell) => {
     cell.font = { bold: true, color: { argb: "FFFFFFFF" } };
     cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: HEADER_FILL } };
     cell.alignment = { vertical: "middle", horizontal: "center", wrapText: true };
   });
-  sum.getRow(1).height = 32;
+  sum.getRow(1).height = 44;
+
+  const notes = [
+    `Período: ${filters.from.split("-").reverse().join("/")} al ${filters.to.split("-").reverse().join("/")}  ·  Sucursal: ${branchFilter}  ·  Empleado: ${employeeFilter}`,
+    "HORAS TRABAJADAS = horas reales (de la entrada a la salida, menos el almuerzo que tomó). Es lo que se paga.",
+    "Minutos perdidos = atraso de entrada + exceso de almuerzo. Ya están fuera de las horas reales: son informativos, NO se restan otra vez.",
+    `Olvidó marcar salida: sus horas se cuentan hasta las ${report.settings.default_exit_time.slice(0, 5)}. Si marca más tarde, se cuenta la hora real.`,
+    "Días sin horas (revisar): tienen entrada pero falta alguna marcación del almuerzo; no se pueden sumar sin revisar.",
+  ];
+  notes.forEach((text, i) => {
+    const cell = sum.getCell(totalsByEmployee.length + 4 + i, 1);
+    cell.value = text;
+    cell.font = { italic: true, size: 9, color: { argb: MUTED_TEXT } };
+  });
+
+  if (options.openSummary) wb.views = [{ x: 0, y: 0, width: 20000, height: 12000, firstSheet: 0, activeTab: 1, visibility: "visible" }];
 
   const buf = await wb.xlsx.writeBuffer();
   return Buffer.from(buf as ArrayBuffer);

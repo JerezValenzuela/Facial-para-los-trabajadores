@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState, useTransition } from "react";
-import { STATUS_LABEL, type ReportRow } from "@/lib/attendance/calc";
+import { STATUS_LABEL, summarizeByEmployee, type ReportRow } from "@/lib/attendance/calc";
 import { formatPermission } from "@/lib/attendance/permissions";
 import { formatDateLabel, formatMinutes, formatTime } from "@/lib/time";
 import { Badge } from "@/components/ui";
@@ -22,6 +22,7 @@ export function AttendanceTable({ rows, branchNames }: { rows: ReportRow[]; bran
   const [noteTarget, setNoteTarget] = useState<(Selected & { initial: string }) | null>(null);
   // Cambios recién guardados (se ven al instante, antes de que se recargue la tabla).
   const [saved, setSaved] = useState<Record<string, string | null>>({});
+  const total = summarizeByEmployee(rows).total;
   const noteOf = (r: ReportRow) => {
     const k = rowKey(r.employeeId, r.date);
     return k in saved ? saved[k] : r.observation;
@@ -64,6 +65,17 @@ export function AttendanceTable({ rows, branchNames }: { rows: ReportRow[]; bran
               />
             ))}
           </tbody>
+          <tfoot className="border-t-2 border-brand-500 bg-brand-50 font-bold">
+            <tr>
+              <td className="td" colSpan={9}>
+                TOTAL ({rows.length} {rows.length === 1 ? "fila" : "filas"})
+              </td>
+              <td className={`td ${total.lunchExcessMinutes ? "text-red-600" : "text-slate-400"}`}>{total.lunchExcessMinutes} min</td>
+              <td className={`td ${total.lateMinutes ? "text-red-600" : "text-slate-400"}`}>{total.lateMinutes} min</td>
+              <td className="td whitespace-nowrap">{formatMinutes(total.workedMinutes)}</td>
+              <td className="td" colSpan={3} />
+            </tr>
+          </tfoot>
         </table>
       </div>
       {selected && <EvidenceModal selected={selected} onClose={() => setSelected(null)} />}
@@ -143,7 +155,17 @@ function Row({
       <td className="td font-mono">{formatTime(r.entrada)}</td>
       <td className="td font-mono">{formatTime(r.salidaAlmuerzo)}</td>
       <td className="td font-mono">{formatTime(r.regresoAlmuerzo)}</td>
-      <td className="td font-mono">{formatTime(r.salidaFinal)}</td>
+      <td className="td font-mono">
+        {r.salidaFinal ? (
+          formatTime(r.salidaFinal)
+        ) : r.assumedExit ? (
+          <span className="text-slate-400 italic" title="Olvidó marcar la salida: sus horas se cuentan hasta esta hora">
+            {formatTime(r.assumedExit)}*
+          </span>
+        ) : (
+          "—"
+        )}
+      </td>
       <td className="td">
         {r.lunchMinutes === null ? "—" : formatMinutes(r.lunchMinutes)}
         {r.lunchOngoing && <span className="ml-1 text-xs text-slate-500">(en curso)</span>}

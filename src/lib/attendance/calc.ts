@@ -3,8 +3,15 @@
  *
  *  Atraso          = entrada real − horario del empleado − tolerancia   (mín. 0)
  *  Almuerzo        = regreso − salida a almuerzo
- *  Exceso almuerzo = almuerzo − almuerzo permitido                       (mín. 0)
- *  Horas trabajadas= (salida final − entrada) − almuerzo
+ *  Exceso almuerzo = almuerzo − permitido − tolerancia de almuerzo     (mín. 0)
+ *                    (60 + 10: volver a 1 h 10 no cuenta; a 1 h 12 son 2 min)
+ *  Horas trabajadas= (salida final − entrada) − almuerzo   ← horas REALES (lo que se paga)
+ *  Minutos perdidos= atraso + exceso de almuerzo (informativo: ya están fuera
+ *                    de las horas reales, NO se restan otra vez)
+ *
+ * Salida olvidada: en un día ya terminado con entrada y almuerzo completos pero
+ * sin "Salir", las horas se calculan hasta la hora de salida asumida (17:00 en
+ * Configuración). Si marca, vale la hora real (más tarde = se le paga).
  *
  * Permisos (registrados por el empleado en el kiosco):
  *  - Todo el día: el día cuenta como "Permiso" (sin atraso ni "Incompleto").
@@ -26,6 +33,10 @@ export type DayRules = {
   entryTime: string; // "08:00" o "08:00:00"
   toleranceMinutes: number;
   lunchAllowedMinutes: number;
+  /** Gracia del almuerzo: el exceso empieza después de permitido + tolerancia. */
+  lunchToleranceMinutes?: number;
+  /** Si olvidó marcar "Salir" (día ya terminado), sus horas se cuentan hasta esta hora. */
+  assumedExitTime?: string | null;
 };
 
 export type DayStatus = "completo" | "incompleto" | "sin_marcaciones" | "en_curso" | "permiso" | "libre";
@@ -42,6 +53,8 @@ export type DaySummary = {
   lunchExcessMinutes: number;
   lateMinutes: number;
   workedMinutes: number | null;
+  /** Olvidó marcar "Salir": hora que se usó para las horas trabajadas (o null). */
+  assumedExit: Date | null;
   status: DayStatus;
   missing: AttendanceEventType[];
   /** Fila en rojo: atraso o exceso de almuerzo. */
@@ -73,9 +86,10 @@ export function computeLunch(
   salida: Date,
   regreso: Date,
   allowedMinutes: number,
+  toleranceMinutes = 0,
 ): { minutes: number; excess: number } {
   const minutes = Math.max(0, minutesBetween(salida, regreso));
-  return { minutes, excess: Math.max(0, minutes - allowedMinutes) };
+  return { minutes, excess: Math.max(0, minutes - allowedMinutes - toleranceMinutes) };
 }
 
 export function summarizeDay(
@@ -97,20 +111,27 @@ export function summarizeDay(
   let lunchExcessMinutes = 0;
   let lunchOngoing = false;
   if (salidaAlmuerzo && regresoAlmuerzo) {
-    const l = computeLunch(salidaAlmuerzo, regresoAlmuerzo, rules.lunchAllowedMinutes);
+    const l = computeLunch(salidaAlmuerzo, regresoAlmuerzo, rules.lunchAllowedMinutes, rules.lunchToleranceMinutes);
     lunchMinutes = l.minutes;
     lunchExcessMinutes = l.excess;
   } else if (salidaAlmuerzo && !regresoAlmuerzo && isToday && !salidaFinal) {
     // Almuerzo en curso: se muestra cuánto lleva fuera (y el exceso en vivo).
     lunchOngoing = true;
-    const l = computeLunch(salidaAlmuerzo, opts.now, rules.lunchAllowedMinutes);
+    const l = computeLunch(salidaAlmuerzo, opts.now, rules.lunchAllowedMinutes, rules.lunchToleranceMinutes);
     lunchMinutes = l.minutes;
     lunchExcessMinutes = l.excess;
   }
 
   let workedMinutes: number | null = null;
-  if (entrada && salidaFinal && salidaAlmuerzo && regresoAlmuerzo && lunchMinutes !== null) {
-    workedMinutes = Math.max(0, minutesBetween(entrada, salidaFinal) - lunchMinutes);
+  let assumedExit: Date | null = null;
+  if (entrada && salidaAlmuerzo && regresoAlmuerzo && lunchMinutes !== null) {
+    let exit = salidaFinal;
+    if (!exit && date < opts.today && rules.assumedExitTime) {
+      // Olvidó marcar "Salir" en un día ya terminado: se cuenta hasta la hora asumida.
+      const candidate = zonedToUtc(date, rules.assumedExitTime);
+      if (candidate > regresoAlmuerzo) exit = assumedExit = candidate;
+    }
+    if (exit) workedMinutes = Math.max(0, minutesBetween(entrada, exit) - lunchMinutes);
   }
 
   const present = [entrada, salidaAlmuerzo, regresoAlmuerzo, salidaFinal];
@@ -135,6 +156,7 @@ export function summarizeDay(
     lunchExcessMinutes,
     lateMinutes,
     workedMinutes,
+    assumedExit,
     status,
     missing,
     flagged: lateMinutes > 0 || lunchExcessMinutes > 0,
@@ -209,6 +231,8 @@ export function buildDailyReport(input: {
   now: Date;
   toleranceMinutes: number;
   lunchAllowedMinutes: number;
+  lunchToleranceMinutes?: number;
+  assumedExitTime?: string | null;
   permissions?: ReportPermission[];
   observations?: ReportObservation[];
 }): ReportRow[] {
@@ -263,6 +287,8 @@ export function buildDailyReport(input: {
           entryTime: entryTimeFor(schedule, date),
           toleranceMinutes: input.toleranceMinutes,
           lunchAllowedMinutes: input.lunchAllowedMinutes,
+          lunchToleranceMinutes: input.lunchToleranceMinutes,
+          assumedExitTime: input.assumedExitTime,
         },
         { today: input.today, now: input.now },
         permission,
@@ -300,3 +326,72 @@ export const STATUS_LABEL: Record<DayStatus, string> = {
   permiso: "Permiso (todo el día)",
   libre: "Día libre",
 };
+
+// ---------------------------------------------------------------------------
+// Totales por empleado (resumen del dashboard y hoja "Resumen" del Excel)
+// ---------------------------------------------------------------------------
+export type EmployeeTotals = {
+  employeeId: string;
+  employeeName: string;
+  branchId: string;
+  /** Días con entrada marcada. */
+  daysWorked: number;
+  daysComplete: number;
+  /** Días en que olvidó marcar "Salir" (horas contadas hasta la salida asumida). */
+  daysAssumedExit: number;
+  /** Días con entrada pero sin horas calculables (faltan marcaciones del almuerzo). */
+  daysWithoutHours: number;
+  /** Días de trabajo sin ninguna marcación ni permiso. */
+  absences: number;
+  permissionDays: number;
+  /** Horas REALES trabajadas (lo que se paga), en minutos. */
+  workedMinutes: number;
+  lateMinutes: number;
+  lunchExcessMinutes: number;
+  /** Atraso + exceso de almuerzo (informativo; ya no están en las horas reales). */
+  lostMinutes: number;
+};
+
+export type TotalsRow = Omit<EmployeeTotals, "employeeId" | "employeeName" | "branchId">;
+
+export function summarizeByEmployee(rows: ReportRow[]): { employees: EmployeeTotals[]; total: TotalsRow } {
+  const blank = (): TotalsRow => ({
+    daysWorked: 0,
+    daysComplete: 0,
+    daysAssumedExit: 0,
+    daysWithoutHours: 0,
+    absences: 0,
+    permissionDays: 0,
+    workedMinutes: 0,
+    lateMinutes: 0,
+    lunchExcessMinutes: 0,
+    lostMinutes: 0,
+  });
+  const add = (t: TotalsRow, r: ReportRow) => {
+    const excess = r.lunchOngoing ? 0 : r.lunchExcessMinutes;
+    if (r.entrada) t.daysWorked += 1;
+    if (r.status === "completo") t.daysComplete += 1;
+    if (r.assumedExit) t.daysAssumedExit += 1;
+    if (r.entrada && r.workedMinutes === null && r.status !== "en_curso") t.daysWithoutHours += 1;
+    if (r.status === "sin_marcaciones") t.absences += 1;
+    if (r.permission) t.permissionDays += 1;
+    t.workedMinutes += r.workedMinutes ?? 0;
+    t.lateMinutes += r.lateMinutes;
+    t.lunchExcessMinutes += excess;
+    t.lostMinutes += r.lateMinutes + excess;
+  };
+
+  const byEmployee = new Map<string, EmployeeTotals>();
+  const total = blank();
+  for (const r of rows) {
+    let e = byEmployee.get(r.employeeId);
+    if (!e) {
+      e = { employeeId: r.employeeId, employeeName: r.employeeName, branchId: r.branchId, ...blank() };
+      byEmployee.set(r.employeeId, e);
+    }
+    add(e, r);
+    add(total, r);
+  }
+  const employees = [...byEmployee.values()].sort((a, b) => a.employeeName.localeCompare(b.employeeName, "es"));
+  return { employees, total };
+}

@@ -14,6 +14,8 @@ export async function updateSettingsAction(_prev: ActionResult, formData: FormDa
     const parsed = settingsSchema.safeParse({
       entry_tolerance_minutes: formData.get("entry_tolerance_minutes"),
       lunch_allowed_minutes: formData.get("lunch_allowed_minutes"),
+      lunch_tolerance_minutes: formData.get("lunch_tolerance_minutes"),
+      default_exit_time: formData.get("default_exit_time"),
       lunch_alert_grace_minutes: formData.get("lunch_alert_grace_minutes"),
       face_match_threshold: formData.get("face_match_threshold"),
       cooldown_seconds: formData.get("cooldown_seconds"),

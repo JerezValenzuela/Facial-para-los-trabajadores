@@ -68,6 +68,11 @@ Las pruebas automáticas se corren con `npm test` (66 pruebas: estados, cálculo
 
 ## 7. Dashboard de asistencia
 - [ ] **Observaciones**: en una fila, el botón **+** junto a la fecha abre “📝 Observación” (no abre las fotos). Guardar → la fila muestra 📝 y el texto bajo la fecha. Volver a abrir → editar o **Borrar**. Sale en “Solo novedades”, en el detalle del día y en la columna **Observaciones** del Excel.
+- [ ] **Este mes** = del día 1 hasta hoy; **Mes pasado** = el mes anterior completo.
+- [ ] **Resumen por empleado**: una fila por empleado con horas trabajadas totales, minutos perdidos, faltas, salidas olvidadas y fila **TOTAL**. Tocar el nombre muestra sus días. El Excel bajado desde el resumen se abre en la hoja “Resumen por empleado”.
+- [ ] Lista completa: fila **TOTAL** al final (exceso, atraso y horas trabajadas); el Excel también trae la fila TOTAL.
+- [ ] Almuerzo de 1 h 10 → sin rojo; 1 h 12 → “+2 min”. En el kiosco: “(tenías 1 hora + 10 min de tolerancia): 2 min de exceso”.
+- [ ] Día anterior sin “Salir” (con almuerzo marcado) → Salida final “17:00*” en gris y las horas se cuentan hasta las 17:00. Si salió 17:20 marcando, cuenta 17:20.
 - [ ] Al entrar se ve **solo hoy** (“Hoy, lun …”). “Ver rápido: Ayer / Últimos 7 días / Últimos 30 días” cambian el rango y conservan sucursal y empleado.
 - [ ] **Horario por empleado**: en Empleados → Editar, desmarca “Dom” y guarda → ese empleado ya no aparece los domingos. Un empleado solo con “Dom” aparece solo los domingos.
 - [ ] Quita “Entra a la misma hora todos los días” → aparece una hora por cada día elegido; pon el sábado más tarde y verifica que el atraso del sábado usa esa hora. La lista de Empleados muestra “Lun–Vie 07:00 · Sáb 08:00”.

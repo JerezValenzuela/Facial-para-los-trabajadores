@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import ExcelJS from "exceljs";
 import { buildAttendanceWorkbook } from "@/lib/attendance/excel";
 import { buildDailyReport } from "@/lib/attendance/calc";
-import { parseReportFilters } from "@/lib/attendance/filters";
+import { lastMonthRange, parseReportFilters, thisMonthRange } from "@/lib/attendance/filters";
 import type { ReportData } from "@/lib/attendance/report-data";
 
 const ec = (date: string, time: string) => new Date(`${date}T${time}-05:00`).toISOString();
@@ -18,6 +18,13 @@ describe("filtros del reporte", () => {
   it("invierte fechas cruzadas y limita el rango a 93 días", () => {
     expect(parseReportFilters({ desde: "2026-10-05", hasta: "2026-10-01" }, now)).toMatchObject({ from: "2026-10-01", to: "2026-10-05" });
     expect(parseReportFilters({ desde: "2025-01-01", hasta: "2026-10-05" }, now).from).toBe("2026-07-05");
+  });
+  it("“Este mes” y “Mes pasado” se calculan solos (incluye cambio de año y febrero)", () => {
+    expect(thisMonthRange("2026-10-19")).toEqual({ from: "2026-10-01", to: "2026-10-19" });
+    expect(lastMonthRange("2026-10-19")).toEqual({ from: "2026-09-01", to: "2026-09-30" });
+    expect(lastMonthRange("2026-01-15")).toEqual({ from: "2025-12-01", to: "2025-12-31" });
+    expect(lastMonthRange("2026-03-01")).toEqual({ from: "2026-02-01", to: "2026-02-28" });
+    expect(lastMonthRange("2028-03-10")).toEqual({ from: "2028-02-01", to: "2028-02-29" });
   });
   it("ignora identificadores inválidos (evita inyección en filtros)", () => {
     expect(parseReportFilters({ sucursal: "' or 1=1 --", empleado: "x" }, now)).toMatchObject({ branchId: null, employeeId: null });
@@ -50,7 +57,7 @@ describe("exportación a Excel", () => {
       branches: [{ id: "b1", name: "Pucará" }],
       employees: [{ id: "e1", full_name: "Ana Pérez", branch_id: "b1", active: true }],
       branchName: new Map([["b1", "Pucará"]]),
-      settings: { entry_tolerance_minutes: 7, lunch_allowed_minutes: 60 },
+      settings: { entry_tolerance_minutes: 7, lunch_allowed_minutes: 60, lunch_tolerance_minutes: 0, default_exit_time: "17:00:00" },
       totals: { rows: rows.length, late: 1, lunchExcess: 1, incomplete: 1, permissions: 0 },
     };
     const jpeg = Buffer.from(
@@ -62,6 +69,7 @@ describe("exportación a Excel", () => {
       report,
       { from: "2026-10-01", to: "2026-10-02", branchId: null, employeeId: null, onlyIssues: false },
       new Map([["eventos/2026-10-01/entrada.jpg", jpeg]]),
+      { openSummary: true },
     );
 
     const wb = new ExcelJS.Workbook();
@@ -103,8 +111,25 @@ describe("exportación a Excel", () => {
     expect(Math.floor(images[0].range.tl.nativeRow)).toBe(5);
     expect(red.height).toBeGreaterThan(40);
 
+    // Fila TOTAL al final de la hoja diaria (fila 7 = 5 + 2 filas): horas, excesos y atrasos sumados.
+    const totalRow = ws.getRow(7);
+    expect(totalRow.getCell(2).value).toBe("TOTAL (2 filas)");
+    expect(totalRow.getCell(13).value).toBe(10);
+    expect(totalRow.getCell(14).value).toBe(13);
+    const totalWorked = totalRow.getCell(15).value as Date; // 08:20→18:00 menos 70 min de almuerzo = 8 h 30
+    expect([totalWorked.getUTCHours(), totalWorked.getUTCMinutes()]).toEqual([8, 30]);
+
+    // Hoja de resumen: una fila por empleado + TOTAL, y el archivo se abre en ella.
     const summary = wb.getWorksheet("Resumen por empleado")!;
+    const headers = (summary.getRow(1).values as unknown[]).slice(1);
+    const c = (name: string) => headers.indexOf(name) + 1;
     expect(summary.getRow(2).getCell(1).value).toBe("Ana Pérez");
-    expect(summary.getRow(2).getCell(7).value).toBe(13);
+    expect(summary.getRow(2).getCell(c("Días trabajados")).value).toBe(2);
+    expect(summary.getRow(2).getCell(c("Atraso entrada (min)")).value).toBe(13);
+    expect(summary.getRow(2).getCell(c("Exceso almuerzo (min)")).value).toBe(10);
+    expect(summary.getRow(2).getCell(c("Minutos perdidos (total)")).value).toBe(23);
+    expect(summary.getRow(2).getCell(c("Días sin horas (revisar)")).value).toBe(1); // el 02 solo tiene entrada
+    expect(summary.getRow(3).getCell(1).value).toBe("TOTAL");
+    expect(wb.views[0]?.activeTab).toBe(1);
   });
 });

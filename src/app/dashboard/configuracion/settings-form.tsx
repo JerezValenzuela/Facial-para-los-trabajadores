@@ -10,6 +10,8 @@ import { updateSettingsAction } from "./actions";
 export type SettingsValues = {
   entry_tolerance_minutes: number;
   lunch_allowed_minutes: number;
+  lunch_tolerance_minutes: number;
+  default_exit_time: string;
   lunch_alert_grace_minutes: number;
   face_match_threshold: number;
   cooldown_seconds: number;
@@ -85,7 +87,24 @@ export function SettingsForm({ values }: { values: SettingsValues }) {
         <NumberField name="entry_tolerance_minutes" label="Tolerancia de entrada (min)" value={values.entry_tolerance_minutes} min={0} max={120}
           help="Atraso = entrada real − horario − tolerancia." error={fe?.entry_tolerance_minutes} />
         <NumberField name="lunch_allowed_minutes" label="Almuerzo permitido (min)" value={values.lunch_allowed_minutes} min={10} max={240}
-          help="Exceso = duración real − permitido." error={fe?.lunch_allowed_minutes} />
+          help="Exceso = duración real − permitido − tolerancia de almuerzo." error={fe?.lunch_allowed_minutes} />
+        <NumberField name="lunch_tolerance_minutes" label="Tolerancia de almuerzo (min)" value={values.lunch_tolerance_minutes} min={0} max={60}
+          help="Ej.: 60 + 10 → hasta 1 h 10 no cuenta; volver a 1 h 12 son 2 min de exceso." error={fe?.lunch_tolerance_minutes} />
+        <div>
+          <label className="label" htmlFor="default_exit_time">Salida si olvidan marcar</label>
+          <input
+            id="default_exit_time"
+            name="default_exit_time"
+            type="time"
+            required
+            defaultValue={values.default_exit_time.slice(0, 5)}
+            className="input max-w-40"
+          />
+          <p className="mt-1 text-xs text-slate-500">
+            Si alguien no marca “Salir”, sus horas se calculan hasta esta hora. Si marca más tarde, se cuenta la hora real.
+          </p>
+          <FieldError message={fe?.default_exit_time} />
+        </div>
         <NumberField name="cooldown_seconds" label="Espera entre marcaciones (s)" value={values.cooldown_seconds} min={10} max={3600}
           help="Evita marcaciones dobles del mismo empleado." error={fe?.cooldown_seconds} />
         <div className="sm:col-span-2">

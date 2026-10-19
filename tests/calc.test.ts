@@ -3,6 +3,7 @@ import {
   buildDailyReport,
   computeLateMinutes,
   computeLunch,
+  summarizeByEmployee,
   summarizeDay,
   type DayRules,
   type ReportEmployee,
@@ -119,6 +120,61 @@ describe("resumen del día", () => {
   });
 });
 
+describe("tolerancia de almuerzo (60 + 10)", () => {
+  const out = ec(DAY, "13:00:00");
+  it("hasta 1 h 10 no cuenta; 1 h 11 = 1 min; 1 h 12 = 2 min", () => {
+    expect(computeLunch(out, ec(DAY, "14:05:00"), 60, 10).excess).toBe(0);
+    expect(computeLunch(out, ec(DAY, "14:10:00"), 60, 10).excess).toBe(0);
+    expect(computeLunch(out, ec(DAY, "14:11:00"), 60, 10).excess).toBe(1);
+    expect(computeLunch(out, ec(DAY, "14:12:00"), 60, 10)).toEqual({ minutes: 72, excess: 2 });
+  });
+  it("la fila solo sale en rojo cuando pasa la tolerancia", () => {
+    const r = { ...rules, lunchToleranceMinutes: 10 };
+    const ok = summarizeDay(DAY, { ENTRADA: ec(DAY, "08:00:00"), SALIDA_ALMUERZO: out, REGRESO_ALMUERZO: ec(DAY, "14:09:00") }, r, { today: "2026-10-20", now: ec("2026-10-20", "12:00:00") });
+    expect(ok.lunchExcessMinutes).toBe(0);
+    expect(ok.flagged).toBe(false);
+    const late = summarizeDay(DAY, { ENTRADA: ec(DAY, "08:00:00"), SALIDA_ALMUERZO: out, REGRESO_ALMUERZO: ec(DAY, "14:12:00") }, r, { today: "2026-10-20", now: ec("2026-10-20", "12:00:00") });
+    expect(late.lunchExcessMinutes).toBe(2);
+    expect(late.flagged).toBe(true);
+  });
+});
+
+describe("salida olvidada: se cuenta hasta las 17:00", () => {
+  const r = { ...rules, assumedExitTime: "17:00" };
+  const marks = { ENTRADA: ec(DAY, "08:00:00"), SALIDA_ALMUERZO: ec(DAY, "13:00:00"), REGRESO_ALMUERZO: ec(DAY, "14:00:00") };
+  const later = { today: "2026-10-20", now: ec("2026-10-20", "09:00:00") };
+
+  it("día ya terminado sin “Salir” → horas hasta las 17:00 (9 h − 1 h de almuerzo = 8 h)", () => {
+    const s = summarizeDay(DAY, marks, r, later);
+    expect(s.workedMinutes).toBe(480);
+    expect(s.assumedExit?.toISOString()).toBe(ec(DAY, "17:00:00").toISOString());
+    expect(s.status).toBe("incompleto");
+  });
+
+  it("si marcó salida a las 17:20, se cuentan las horas reales (+20 min)", () => {
+    const s = summarizeDay(DAY, { ...marks, SALIDA_FINAL: ec(DAY, "17:20:00") }, r, later);
+    expect(s.workedMinutes).toBe(500);
+    expect(s.assumedExit).toBeNull();
+  });
+
+  it("hoy todavía no se asume nada (puede seguir trabajando)", () => {
+    const s = summarizeDay(DAY, marks, r, { today: DAY, now: ec(DAY, "18:00:00") });
+    expect(s.workedMinutes).toBeNull();
+    expect(s.assumedExit).toBeNull();
+  });
+
+  it("sin marcaciones del almuerzo no se inventan horas", () => {
+    const s = summarizeDay(DAY, { ENTRADA: ec(DAY, "08:00:00") }, r, later);
+    expect(s.workedMinutes).toBeNull();
+    expect(s.assumedExit).toBeNull();
+  });
+
+  it("si regresó del almuerzo después de las 17:00, no se asume", () => {
+    const s = summarizeDay(DAY, { ...marks, REGRESO_ALMUERZO: ec(DAY, "17:30:00") }, r, later);
+    expect(s.workedMinutes).toBeNull();
+  });
+});
+
 describe("reporte diario", () => {
   const employee: ReportEmployee = {
     id: "e1",
@@ -229,5 +285,79 @@ describe("reporte diario", () => {
     expect(rows[0].date).toBe("2026-10-03");
     expect(rows[0].employeeName).toBe("Ana Pérez");
     expect(rows[1].employeeName).toBe("Bruno Díaz");
+  });
+});
+
+describe("resumen por empleado (totales del período)", () => {
+  const emp = (id: string, full_name: string): ReportEmployee => ({
+    id,
+    full_name,
+    cedula: "1712345675",
+    branch_id: "b1",
+    position: "Vendedor",
+    entry_time: "08:00:00",
+    work_days: [1, 2, 3, 4, 5, 6],
+    entry_times: {},
+    active: true,
+    created_at: "2026-09-01T12:00:00Z",
+  });
+  const ev = (employee_id: string, date: string, type: "ENTRADA" | "SALIDA_ALMUERZO" | "REGRESO_ALMUERZO" | "SALIDA_FINAL", time: string) => ({
+    employee_id,
+    event_type: type,
+    occurred_at: ec(date, time).toISOString(),
+    work_date: date,
+    branch_id: "b1",
+  });
+
+  it("suma horas reales, minutos perdidos, faltas y salidas olvidadas", () => {
+    const rows = buildDailyReport({
+      employees: [emp("e1", "Ana"), emp("e2", "Beto")],
+      events: [
+        // Ana, jue 01: 08:20 (13 min de atraso con tolerancia 7), almuerzo 1 h 12 (2 min con tolerancia 10), sale 17:00
+        ev("e1", "2026-10-01", "ENTRADA", "08:20:00"),
+        ev("e1", "2026-10-01", "SALIDA_ALMUERZO", "13:00:00"),
+        ev("e1", "2026-10-01", "REGRESO_ALMUERZO", "14:12:00"),
+        ev("e1", "2026-10-01", "SALIDA_FINAL", "17:00:00"),
+        // Ana, vie 02: olvidó marcar salida → se cuenta hasta las 17:00
+        ev("e1", "2026-10-02", "ENTRADA", "08:00:00"),
+        ev("e1", "2026-10-02", "SALIDA_ALMUERZO", "13:00:00"),
+        ev("e1", "2026-10-02", "REGRESO_ALMUERZO", "14:00:00"),
+        // Beto, jue 01: completo y a tiempo; vie 02: no vino (falta)
+        ev("e2", "2026-10-01", "ENTRADA", "08:00:00"),
+        ev("e2", "2026-10-01", "SALIDA_ALMUERZO", "13:00:00"),
+        ev("e2", "2026-10-01", "REGRESO_ALMUERZO", "14:00:00"),
+        ev("e2", "2026-10-01", "SALIDA_FINAL", "17:30:00"),
+      ],
+      from: "2026-10-01",
+      to: "2026-10-02",
+      today: "2026-10-05",
+      now: ec("2026-10-05", "12:00:00"),
+      toleranceMinutes: 7,
+      lunchAllowedMinutes: 60,
+      lunchToleranceMinutes: 10,
+      assumedExitTime: "17:00",
+    });
+    const { employees, total } = summarizeByEmployee(rows);
+    const ana = employees.find((e) => e.employeeName === "Ana")!;
+    const beto = employees.find((e) => e.employeeName === "Beto")!;
+
+    // Ana: día 1 = 8 h 40 − 1 h 12 = 7 h 28 (448); día 2 = 9 h − 1 h = 8 h (480)
+    expect(ana.workedMinutes).toBe(448 + 480);
+    expect(ana.lateMinutes).toBe(13);
+    expect(ana.lunchExcessMinutes).toBe(2);
+    expect(ana.lostMinutes).toBe(15);
+    expect(ana.daysWorked).toBe(2);
+    expect(ana.daysAssumedExit).toBe(1);
+    expect(ana.absences).toBe(0);
+
+    // Beto: 9 h 30 − 1 h = 8 h 30 (510); el viernes es falta
+    expect(beto.workedMinutes).toBe(510);
+    expect(beto.lostMinutes).toBe(0);
+    expect(beto.absences).toBe(1);
+
+    expect(total.workedMinutes).toBe(448 + 480 + 510);
+    expect(total.lostMinutes).toBe(15);
+    expect(total.daysWorked).toBe(3);
+    expect(employees.map((e) => e.employeeName)).toEqual(["Ana", "Beto"]);
   });
 });

@@ -605,6 +605,7 @@ export type Database = {
           alert_lunch_overdue: boolean
           alert_suspicious: boolean
           cooldown_seconds: number
+          default_exit_time: string
           entry_tolerance_minutes: number
           evidence_enabled: boolean
           evidence_retention_days: number
@@ -613,6 +614,7 @@ export type Database = {
           liveness_steps: number
           lunch_alert_grace_minutes: number
           lunch_allowed_minutes: number
+          lunch_tolerance_minutes: number
           suspicious_attempts_threshold: number
           suspicious_window_minutes: number
           updated_at: string
@@ -624,6 +626,7 @@ export type Database = {
           alert_lunch_overdue?: boolean
           alert_suspicious?: boolean
           cooldown_seconds?: number
+          default_exit_time?: string
           entry_tolerance_minutes?: number
           evidence_enabled?: boolean
           evidence_retention_days?: number
@@ -632,6 +635,7 @@ export type Database = {
           liveness_steps?: number
           lunch_alert_grace_minutes?: number
           lunch_allowed_minutes?: number
+          lunch_tolerance_minutes?: number
           suspicious_attempts_threshold?: number
           suspicious_window_minutes?: number
           updated_at?: string
@@ -643,6 +647,7 @@ export type Database = {
           alert_lunch_overdue?: boolean
           alert_suspicious?: boolean
           cooldown_seconds?: number
+          default_exit_time?: string
           entry_tolerance_minutes?: number
           evidence_enabled?: boolean
           evidence_retention_days?: number
@@ -651,6 +656,7 @@ export type Database = {
           liveness_steps?: number
           lunch_alert_grace_minutes?: number
           lunch_allowed_minutes?: number
+          lunch_tolerance_minutes?: number
           suspicious_attempts_threshold?: number
           suspicious_window_minutes?: number
           updated_at?: string

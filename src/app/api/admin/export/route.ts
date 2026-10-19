@@ -37,10 +37,12 @@ export async function GET(req: Request) {
     return NextResponse.json({ ok: false, message: "No autorizado." }, { status: 401 });
   }
   try {
-    const filters = parseReportFilters(new URL(req.url).searchParams);
+    const params = new URL(req.url).searchParams;
+    const filters = parseReportFilters(params);
     const report = await loadReport(check.session.supabase, filters);
     const photos = await downloadPhotos(report.rows.map((r) => r.photoPath ?? "").filter(Boolean));
-    const xlsx = await buildAttendanceWorkbook(report, filters, photos);
+    // Desde la vista "Resumen por empleado", el Excel se abre en esa hoja.
+    const xlsx = await buildAttendanceWorkbook(report, filters, photos, { openSummary: params.get("vista") === "resumen" });
     const name = `asistencia_${filters.from}_a_${filters.to}.xlsx`;
     return new NextResponse(new Uint8Array(xlsx), {
       status: 200,

@@ -43,6 +43,17 @@ export function parseReportFilters(p: Params, now: Date = new Date()): ReportFil
   };
 }
 
+/** "Este mes": del día 1 del mes actual hasta hoy. */
+export function thisMonthRange(today: string): { from: string; to: string } {
+  return { from: `${today.slice(0, 7)}-01`, to: today };
+}
+
+/** "Mes pasado": el mes anterior completo (del 1 al último día). */
+export function lastMonthRange(today: string): { from: string; to: string } {
+  const lastDay = addDays(`${today.slice(0, 7)}-01`, -1);
+  return { from: `${lastDay.slice(0, 7)}-01`, to: lastDay };
+}
+
 export function filtersToQuery(f: ReportFilters): string {
   const q = new URLSearchParams({ desde: f.from, hasta: f.to });
   if (f.branchId) q.set("sucursal", f.branchId);

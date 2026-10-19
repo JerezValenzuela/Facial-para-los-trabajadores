@@ -11,7 +11,12 @@ export type ReportData = {
   branches: { id: string; name: string }[];
   employees: { id: string; full_name: string; branch_id: string; active: boolean }[];
   branchName: Map<string, string>;
-  settings: { entry_tolerance_minutes: number; lunch_allowed_minutes: number };
+  settings: {
+    entry_tolerance_minutes: number;
+    lunch_allowed_minutes: number;
+    lunch_tolerance_minutes: number;
+    default_exit_time: string;
+  };
   totals: { rows: number; late: number; lunchExcess: number; incomplete: number; permissions: number };
 };
 
@@ -32,7 +37,11 @@ export async function loadReport(
   if (filters.employeeId) empQuery = empQuery.eq("id", filters.employeeId);
 
   const [{ data: settingsRow }, { data: branches }, { data: employees }, { data: allEmployees }] = await Promise.all([
-    supabase.from("settings").select("entry_tolerance_minutes, lunch_allowed_minutes").eq("id", 1).maybeSingle(),
+    supabase
+      .from("settings")
+      .select("entry_tolerance_minutes, lunch_allowed_minutes, lunch_tolerance_minutes, default_exit_time")
+      .eq("id", 1)
+      .maybeSingle(),
     supabase.from("branches").select("id, name").order("name"),
     empQuery,
     supabase.from("employees").select("id, full_name, branch_id, active").order("full_name"),
@@ -41,6 +50,8 @@ export async function loadReport(
   const settings = settingsRow ?? {
     entry_tolerance_minutes: DEFAULT_SETTINGS.entry_tolerance_minutes,
     lunch_allowed_minutes: DEFAULT_SETTINGS.lunch_allowed_minutes,
+    lunch_tolerance_minutes: DEFAULT_SETTINGS.lunch_tolerance_minutes,
+    default_exit_time: DEFAULT_SETTINGS.default_exit_time,
   };
 
   const ids = (employees ?? []).map((e) => e.id);
@@ -94,6 +105,8 @@ export async function loadReport(
     now,
     toleranceMinutes: settings.entry_tolerance_minutes,
     lunchAllowedMinutes: settings.lunch_allowed_minutes,
+    lunchToleranceMinutes: settings.lunch_tolerance_minutes,
+    assumedExitTime: settings.default_exit_time,
   });
   if (filters.onlyIssues) {
     rows = rows.filter(

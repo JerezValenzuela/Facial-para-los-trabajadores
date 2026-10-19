@@ -121,12 +121,18 @@ export async function POST(req: Request) {
       .eq("event_type", "SALIDA_ALMUERZO")
       .maybeSingle();
     if (out) {
-      const lunch = computeLunch(new Date(out.occurred_at), occurredAt, settings.lunch_allowed_minutes);
+      const lunch = computeLunch(
+        new Date(out.occurred_at),
+        occurredAt,
+        settings.lunch_allowed_minutes,
+        settings.lunch_tolerance_minutes,
+      );
       warn = lunch.excess > 0;
       const allowed = formatDurationWords(settings.lunch_allowed_minutes);
+      const grace = settings.lunch_tolerance_minutes ? ` + ${settings.lunch_tolerance_minutes} min de tolerancia` : "";
       info =
         lunch.excess > 0
-          ? `Tomaste ${formatMinutes(lunch.minutes)} de almuerzo (tenías ${allowed}): ${formatMinutes(lunch.excess)} de exceso`
+          ? `Tomaste ${formatMinutes(lunch.minutes)} de almuerzo (tenías ${allowed}${grace}): ${formatMinutes(lunch.excess)} de exceso`
           : `Tomaste ${formatMinutes(lunch.minutes)} de almuerzo (tenías ${allowed}) · ¡A tiempo!`;
       if (lunch.excess > 0 && settings.alert_lunch_excess) {
         const branchName = (emp?.branches as { name: string } | null)?.name ?? "sin sucursal";
@@ -143,6 +149,7 @@ export async function POST(req: Request) {
               exceso_minutos: lunch.excess,
               almuerzo_minutos: lunch.minutes,
               permitido: settings.lunch_allowed_minutes,
+              tolerancia: settings.lunch_tolerance_minutes,
               sucursal: branchName,
             },
           }),

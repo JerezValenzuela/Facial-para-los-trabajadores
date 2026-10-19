@@ -128,6 +128,7 @@ Las migraciones están versionadas en `supabase/migrations/` y **ya están aplic
 | `…0008_eliminar_empleado.sql` | `admin_delete_employee`: borra al empleado y todo lo suyo en una transacción (solo el servidor) |
 | `…0009_horario_por_empleado.sql` | Horario por empleado: `work_days` (días que trabaja) y `entry_times` (hora de cada día) |
 | `…0010_observaciones.sql` | Tabla `observations`: una observación del administrador por empleado y día (solo admin, RLS) |
+| `…0011_tolerancia_almuerzo_y_salida_asumida.sql` | Configuración: `lunch_tolerance_minutes` (10) y `default_exit_time` (17:00) |
 
 Tablas: `branches`, `branch_ips`, `employees`, `face_templates`, `attendance_events`, `failed_attempts`, `alerts`, `settings` y `admin_users`, más tres de soporte: `kiosk_challenges` (retos de un solo uso), `rate_limits` y `audit_log`.
 
@@ -244,7 +245,11 @@ Todas se editan en **Dashboard → Configuración** (tabla `settings`):
 | Horario del empleado | en su ficha | Cada empleado tiene **sus días de trabajo** y su hora de entrada: la misma todos los días o **una hora distinta por día**. En los días que no trabaja no aparece en Asistencia ni en el Excel; si marca igual, sale como “Libre” y sin atraso |
 | Días por defecto | Configuración | Solo pre-marcan los días al crear un empleado nuevo |
 | Observaciones | 1 por empleado y día | Botón **+** junto a la fecha en Asistencia: escribir, editar o borrar lo que pasó ese día. Salen en la tabla, en el detalle del día, con “Solo novedades” y en la columna **Observaciones** del Excel |
-| Vista del dashboard | hoy | Al entrar se ve solo el día de hoy; para más días: filtros o “Ver rápido” (Ayer, Últimos 7 / 30 días) |
+| Tolerancia de almuerzo | 10 min | El exceso empieza después de *permitido + tolerancia*: volver a 1 h 10 no cuenta; a 1 h 12 son **2 min** de exceso (rojo) |
+| Salida olvidada | 17:00 | Si un día ya terminado tiene entrada y almuerzo pero no “Salir”, sus horas se cuentan hasta las 17:00 (gris cursiva con *). Si marca más tarde, se cuenta la hora real |
+| Horas trabajadas | reales | (salida − entrada) − almuerzo tomado: es lo que se paga. **Minutos perdidos** = atraso + exceso de almuerzo; ya están fuera de las horas reales (informativo, no se restan otra vez) |
+| Resumen por empleado | dashboard + Excel | Botón “Resumen por empleado”: días trabajados, faltas, permisos, salidas olvidadas, días sin horas, **total de horas**, minutos perdidos y fila TOTAL. El Excel trae la hoja “Resumen por empleado” y una fila TOTAL en la hoja diaria |
+| Vista del dashboard | hoy | Al entrar se ve solo el día de hoy; para más días: filtros o “Ver rápido” (Ayer, Últimos 7 / 30 días, Este mes, Mes pasado) |
 | Umbral facial | 0.50 | Distancia euclidiana máxima. Menor es más estricto. Si 2 empleados quedan bajo el umbral, se rechaza por ambigüedad |
 | Prueba de vida | fija | Girar la cabeza a la derecha, luego a la izquierda y mirar al centro. Sin parpadeo. Funciona aunque la webcam entregue la imagen en espejo. Si un intento se queda sin tiempo, se registra en Intentos fallidos con el giro alcanzado (para diagnóstico) |
 | Permiso | uno por día | *Todo el día*: el día figura como “Permiso” (sin atraso ni “Incompleto”). *Por horas*: si empieza antes de la hora de entrada, la llegada esperada pasa a ser el fin del permiso |

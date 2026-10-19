@@ -26,7 +26,11 @@ export default async function DayDetailPage(props: PageProps<"/dashboard/asisten
       .eq("employee_id", employeeId)
       .eq("work_date", date)
       .order("occurred_at"),
-    supabase.from("settings").select("entry_tolerance_minutes, lunch_allowed_minutes").eq("id", 1).maybeSingle(),
+    supabase
+      .from("settings")
+      .select("entry_tolerance_minutes, lunch_allowed_minutes, lunch_tolerance_minutes, default_exit_time")
+      .eq("id", 1)
+      .maybeSingle(),
     supabase.from("branches").select("id, name"),
     supabase.from("observations").select("note").eq("employee_id", employeeId).eq("work_date", date).maybeSingle(),
   ]);
@@ -42,6 +46,8 @@ export default async function DayDetailPage(props: PageProps<"/dashboard/asisten
       entryTime: entryTimeFor(schedule, date),
       toleranceMinutes: settings?.entry_tolerance_minutes ?? 7,
       lunchAllowedMinutes: settings?.lunch_allowed_minutes ?? 60,
+      lunchToleranceMinutes: settings?.lunch_tolerance_minutes ?? 10,
+      assumedExitTime: settings?.default_exit_time ?? "17:00",
     },
     { today: todayInTz(), now: new Date() },
   );
@@ -63,7 +69,23 @@ export default async function DayDetailPage(props: PageProps<"/dashboard/asisten
         <Info label="Atraso" value={summary.lateMinutes ? <b className="text-red-600">{summary.lateMinutes} min</b> : "0"} />
         <Info label="Almuerzo" value={summary.lunchMinutes === null ? "—" : formatMinutes(summary.lunchMinutes)} />
         <Info label="Exceso almuerzo" value={summary.lunchExcessMinutes ? <b className="text-red-600">{summary.lunchExcessMinutes} min</b> : "0"} />
-        <Info label="Horas trabajadas" value={summary.workedMinutes === null ? "—" : formatMinutes(summary.workedMinutes)} />
+        <Info
+          label="Horas trabajadas"
+          value={
+            summary.workedMinutes === null ? (
+              "—"
+            ) : (
+              <>
+                {formatMinutes(summary.workedMinutes)}
+                {summary.assumedExit && (
+                  <span className="block text-xs font-normal text-slate-500">
+                    Olvidó marcar salida: contado hasta las {formatTime(summary.assumedExit)}
+                  </span>
+                )}
+              </>
+            )
+          }
+        />
       </div>
 
       {observation?.note && (
