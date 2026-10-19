@@ -31,7 +31,7 @@ export async function loadReport(
 ): Promise<ReportData> {
   let empQuery = supabase
     .from("employees")
-    .select("id, full_name, cedula, branch_id, position, entry_time, work_days, entry_times, active, created_at")
+    .select("id, full_name, cedula, branch_id, position, entry_time, work_days, entry_times, no_lunch_days, active, created_at")
     .order("full_name");
   if (filters.branchId) empQuery = empQuery.eq("branch_id", filters.branchId);
   if (filters.employeeId) empQuery = empQuery.eq("id", filters.employeeId);

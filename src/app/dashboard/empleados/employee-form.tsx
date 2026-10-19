@@ -17,6 +17,7 @@ type Employee = {
   entry_time: string;
   work_days: number[];
   entry_times: unknown;
+  no_lunch_days?: number[];
 };
 
 export function EmployeeForm({
@@ -38,6 +39,8 @@ export function EmployeeForm({
   const baseTime = employee?.entry_time?.slice(0, 5) ?? "08:00";
   const savedTimes = parseEntryTimes(employee?.entry_times);
   const [days, setDays] = useState<number[]>(employee?.work_days ?? defaultWorkDays);
+  // Por defecto el sábado es media jornada (no salen al almuerzo).
+  const [noLunch, setNoLunch] = useState<number[]>(employee?.no_lunch_days ?? [6]);
   const [sameTime, setSameTime] = useState(Object.keys(savedTimes).length === 0);
   const [time, setTime] = useState(baseTime);
   const [dayTimes, setDayTimes] = useState<Record<string, string>>(() =>
@@ -129,6 +132,40 @@ export function EmployeeForm({
           </p>
           <FieldError message={fe?.work_days} />
         </div>
+
+        {days.length > 0 && (
+          <div>
+            <p className="label">¿Qué días NO sale al almuerzo? (media jornada)</p>
+            <div className="flex flex-wrap gap-2">
+              {WEEKDAYS.filter((d) => days.includes(d.iso)).map((d) => {
+                const on = noLunch.includes(d.iso);
+                return (
+                  <label
+                    key={d.iso}
+                    className={`flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium transition select-none has-focus-visible:ring-2 has-focus-visible:ring-brand-500 has-focus-visible:ring-offset-1 ${
+                      on ? "border-sky-600 bg-sky-600 text-white" : "border-slate-300 bg-white text-slate-600 hover:border-slate-400"
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      name="no_lunch_days"
+                      value={d.iso}
+                      checked={on}
+                      onChange={() =>
+                        setNoLunch((cur) => (cur.includes(d.iso) ? cur.filter((x) => x !== d.iso) : [...cur, d.iso]))
+                      }
+                      className="sr-only"
+                    />
+                    {d.short}
+                  </label>
+                );
+              })}
+            </div>
+            <p className="mt-1 text-xs text-slate-500">
+              Esos días basta con marcar Entrar y Salir: el día queda completo y se cuentan todas sus horas.
+            </p>
+          </div>
+        )}
 
         <label className="flex items-center gap-3 text-sm font-medium text-slate-800">
           <input

@@ -3,6 +3,8 @@
  *  - work_days: días ISO (1 = lunes … 7 = domingo).
  *  - entry_times vacío → entra a la misma hora todos los días (entry_time).
  *  - entry_times {"1":"07:00","6":"08:00"} → hora de cada día.
+ *  - no_lunch_days: días sin almuerzo (media jornada, ej. sábado): con Entrar +
+ *    Salir el día está completo y no se descuenta almuerzo.
  * Funciones puras: se usan en el servidor, en el Excel y en el formulario.
  */
 import { isoWeekday } from "@/lib/time";
@@ -25,6 +27,8 @@ export type Schedule = {
   entryTime: string;
   /** Hora por día (clave = día ISO). Vacío = misma hora todos los días. */
   entryTimes: Record<string, string>;
+  /** Días sin almuerzo (media jornada). */
+  noLunchDays?: number[];
 };
 
 /** Normaliza el JSON guardado en la BD (ignora claves u horas inválidas). */
@@ -37,8 +41,18 @@ export function parseEntryTimes(json: unknown): Record<string, string> {
   return out;
 }
 
-export function scheduleFromRow(row: { work_days: number[]; entry_time: string; entry_times: unknown }): Schedule {
-  return { workDays: row.work_days, entryTime: row.entry_time, entryTimes: parseEntryTimes(row.entry_times) };
+export function scheduleFromRow(row: {
+  work_days: number[];
+  entry_time: string;
+  entry_times: unknown;
+  no_lunch_days?: number[] | null;
+}): Schedule {
+  return {
+    workDays: row.work_days,
+    entryTime: row.entry_time,
+    entryTimes: parseEntryTimes(row.entry_times),
+    noLunchDays: row.no_lunch_days ?? [],
+  };
 }
 
 export function sameTimeEveryDay(s: Schedule): boolean {
@@ -47,6 +61,11 @@ export function sameTimeEveryDay(s: Schedule): boolean {
 
 export function worksOn(s: Schedule, date: string): boolean {
   return s.workDays.includes(isoWeekday(date));
+}
+
+/** ¿Ese día sale al almuerzo? (false = media jornada: basta Entrar + Salir). */
+export function hasLunch(s: Schedule, date: string): boolean {
+  return !(s.noLunchDays ?? []).includes(isoWeekday(date));
 }
 
 /** Hora de entrada "HH:MM" para ese día de la semana. */
@@ -68,13 +87,15 @@ export function formatWorkDays(days: number[]): string {
   return sorted.map(short).join(", ");
 }
 
-/** Resumen del horario: "Lun–Sáb · 07:00" o "Lun–Vie 07:00 · Sáb 08:00". */
+/** Resumen del horario: "Lun–Sáb · 07:00" o "Lun–Vie 07:00 · Sáb 08:00" (+ "· Sáb sin almuerzo"). */
 export function formatSchedule(s: Schedule): string {
-  if (sameTimeEveryDay(s)) return `${formatWorkDays(s.workDays)} · ${s.entryTime.slice(0, 5)}`;
+  const noLunch = (s.noLunchDays ?? []).filter((d) => s.workDays.includes(d));
+  const lunchNote = noLunch.length ? ` · ${formatWorkDays(noLunch)} sin almuerzo` : "";
+  if (sameTimeEveryDay(s)) return `${formatWorkDays(s.workDays)} · ${s.entryTime.slice(0, 5)}${lunchNote}`;
   const groups = new Map<string, number[]>();
   for (const d of [...s.workDays].sort((a, b) => a - b)) {
     const t = entryTimeForDay(s, d);
     groups.set(t, [...(groups.get(t) ?? []), d]);
   }
-  return [...groups.entries()].map(([t, days]) => `${formatWorkDays(days)} ${t}`).join(" · ");
+  return [...groups.entries()].map(([t, days]) => `${formatWorkDays(days)} ${t}`).join(" · ") + lunchNote;
 }

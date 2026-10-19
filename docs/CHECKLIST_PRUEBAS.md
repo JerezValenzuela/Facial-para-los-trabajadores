@@ -68,6 +68,7 @@ Las pruebas automáticas se corren con `npm test` (66 pruebas: estados, cálculo
 
 ## 7. Dashboard de asistencia
 - [ ] **Observaciones**: en una fila, el botón **+** junto a la fecha abre “📝 Observación” (no abre las fotos). Guardar → la fila muestra 📝 y el texto bajo la fecha. Volver a abrir → editar o **Borrar**. Sale en “Solo novedades”, en el detalle del día y en la columna **Observaciones** del Excel.
+- [ ] **Sábado sin almuerzo**: con solo Entrar (07:10) y Salir (13:02) el sábado sale **Completo** con 5 h 52 y “Sin almuerzo”; se suma en el total. Un día normal con solo Entrar y Salir sigue “Incompleto”. En la ficha del empleado se puede cambiar qué días no sale al almuerzo.
 - [ ] **Este mes** = del día 1 hasta hoy; **Mes pasado** = el mes anterior completo.
 - [ ] **Resumen por empleado**: una fila por empleado con horas trabajadas totales, minutos perdidos, faltas, salidas olvidadas y fila **TOTAL**. Tocar el nombre muestra sus días. El Excel bajado desde el resumen se abre en la hoja “Resumen por empleado”.
 - [ ] Lista completa: fila **TOTAL** al final (exceso, atraso y horas trabajadas); el Excel también trae la fila TOTAL.

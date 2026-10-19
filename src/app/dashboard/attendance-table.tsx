@@ -167,7 +167,13 @@ function Row({
         )}
       </td>
       <td className="td">
-        {r.lunchMinutes === null ? "—" : formatMinutes(r.lunchMinutes)}
+        {r.lunchMinutes !== null ? (
+          formatMinutes(r.lunchMinutes)
+        ) : !r.lunchExpected && r.entrada ? (
+          <span className="text-xs text-slate-400" title="Día sin almuerzo (media jornada)">Sin almuerzo</span>
+        ) : (
+          "—"
+        )}
         {r.lunchOngoing && <span className="ml-1 text-xs text-slate-500">(en curso)</span>}
       </td>
       <td className="td">

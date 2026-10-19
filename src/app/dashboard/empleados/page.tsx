@@ -18,7 +18,7 @@ export default async function EmployeesPage(props: PageProps<"/dashboard/emplead
     supabase.from("branches").select("id, name").order("name"),
     supabase
       .from("employees")
-      .select("id, full_name, cedula, position, entry_time, work_days, entry_times, active, branch_id, consent_at, consent_revoked_at, face_templates(count)")
+      .select("id, full_name, cedula, position, entry_time, work_days, entry_times, no_lunch_days, active, branch_id, consent_at, consent_revoked_at, face_templates(count)")
       .order("full_name"),
   ]);
 

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   entryTimeFor,
+  hasLunch,
   formatSchedule,
   formatWorkDays,
   parseEntryTimes,
@@ -51,10 +52,23 @@ describe("horario por empleado", () => {
   });
 });
 
+describe("días sin almuerzo (media jornada)", () => {
+  const s: Schedule = { ...lunToSab, noLunchDays: [6] };
+  it("el sábado no sale al almuerzo; el lunes sí", () => {
+    expect(hasLunch(s, "2026-10-17")).toBe(false); // sábado
+    expect(hasLunch(s, "2026-10-19")).toBe(true); // lunes
+    expect(hasLunch(lunToSab, "2026-10-17")).toBe(true); // sin configurar = todos con almuerzo
+  });
+  it("se ve en el resumen del horario", () => {
+    expect(formatSchedule(s)).toBe("Lun–Sáb · 07:00 · Sáb sin almuerzo");
+    expect(formatSchedule({ ...s, workDays: [1, 2, 3, 4, 5] })).toBe("Lun–Vie · 07:00");
+  });
+});
+
 describe("validación del formulario de horario", () => {
   it("misma hora: guarda una sola hora y entry_times vacío", () => {
     const r = scheduleSchema.parse({ work_days: ["6", "1", "1"], same_time: true, entry_time: "07:30", day_times: {} });
-    expect(r).toEqual({ work_days: [1, 6], entry_time: "07:30", entry_times: {} });
+    expect(r).toEqual({ work_days: [1, 6], no_lunch_days: [], entry_time: "07:30", entry_times: {} });
   });
 
   it("hora por día: solo los días elegidos, y entry_time = la del primer día", () => {
@@ -64,7 +78,12 @@ describe("validación del formulario de horario", () => {
       entry_time: "",
       day_times: { "6": "08:00", "7": "09:00", "1": "05:00" },
     });
-    expect(r).toEqual({ work_days: [6, 7], entry_time: "08:00", entry_times: { "6": "08:00", "7": "09:00" } });
+    expect(r).toEqual({ work_days: [6, 7], no_lunch_days: [], entry_time: "08:00", entry_times: { "6": "08:00", "7": "09:00" } });
+  });
+
+  it("días sin almuerzo: solo cuentan los que también son días de trabajo", () => {
+    const r = scheduleSchema.parse({ work_days: ["1", "6"], no_lunch_days: ["6", "7", "6"], same_time: true, entry_time: "07:00" });
+    expect(r.no_lunch_days).toEqual([6]);
   });
 
   it("errores claros por campo", () => {

@@ -102,6 +102,20 @@ describe("formulario del empleado: editar el horario", () => {
     });
   });
 
+  it("días sin almuerzo: se ven marcados y se guardan (sábado por defecto)", () => {
+    const html = render({
+      branches,
+      employee: { ...base, entry_time: "07:00:00", work_days: [1, 2, 3, 4, 5, 6], entry_times: {}, no_lunch_days: [6] },
+    });
+    const fd = submitted(html);
+    expect(fd.getAll("no_lunch_days")).toEqual(["6"]);
+    const parsed = parseEmployeeForm(fd);
+    expect(parsed.success && parsed.data.no_lunch_days).toEqual([6]);
+
+    // Empleado nuevo: el sábado viene marcado como día sin almuerzo.
+    expect(submitted(render({ branches, defaultWorkDays: [1, 2, 3, 4, 5, 6] })).getAll("no_lunch_days")).toEqual(["6"]);
+  });
+
   it("empleado nuevo: vienen marcados los días por defecto de Configuración", () => {
     const fd = submitted(render({ branches, defaultWorkDays: [1, 2, 3, 4, 5] }));
     expect(fd.getAll("work_days")).toEqual(["1", "2", "3", "4", "5"]);

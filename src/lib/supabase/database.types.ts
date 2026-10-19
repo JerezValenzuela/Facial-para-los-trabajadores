@@ -275,6 +275,7 @@ export type Database = {
           entry_times: Json
           full_name: string
           id: string
+          no_lunch_days: number[]
           position: string
           updated_at: string
           work_days: number[]
@@ -293,6 +294,7 @@ export type Database = {
           entry_times?: Json
           full_name: string
           id?: string
+          no_lunch_days?: number[]
           position: string
           updated_at?: string
           work_days?: number[]
@@ -311,6 +313,7 @@ export type Database = {
           entry_times?: Json
           full_name?: string
           id?: string
+          no_lunch_days?: number[]
           position?: string
           updated_at?: string
           work_days?: number[]

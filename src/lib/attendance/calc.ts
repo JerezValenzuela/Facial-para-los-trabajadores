@@ -9,6 +9,9 @@
  *  Minutos perdidos= atraso + exceso de almuerzo (informativo: ya están fuera
  *                    de las horas reales, NO se restan otra vez)
  *
+ * Días sin almuerzo (media jornada, ej. sábado): con Entrar + Salir el día está
+ * completo y Horas trabajadas = salida − entrada (no se descuenta almuerzo).
+ *
  * Salida olvidada: en un día ya terminado con entrada y almuerzo completos pero
  * sin "Salir", las horas se calculan hasta la hora de salida asumida (17:00 en
  * Configuración). Si marca, vale la hora real (más tarde = se le paga).
@@ -27,7 +30,7 @@
 import { dateInTz, dateRange, minutesBetween, zonedToUtc } from "@/lib/time";
 import type { AttendanceEventType } from "./events";
 import type { DayPermission } from "./permissions";
-import { entryTimeFor, scheduleFromRow, worksOn } from "./schedule";
+import { entryTimeFor, hasLunch, scheduleFromRow, worksOn } from "./schedule";
 
 export type DayRules = {
   entryTime: string; // "08:00" o "08:00:00"
@@ -37,6 +40,8 @@ export type DayRules = {
   lunchToleranceMinutes?: number;
   /** Si olvidó marcar "Salir" (día ya terminado), sus horas se cuentan hasta esta hora. */
   assumedExitTime?: string | null;
+  /** false = día sin almuerzo (media jornada): basta Entrar + Salir. Por defecto true. */
+  lunchExpected?: boolean;
 };
 
 export type DayStatus = "completo" | "incompleto" | "sin_marcaciones" | "en_curso" | "permiso" | "libre";
@@ -55,6 +60,8 @@ export type DaySummary = {
   workedMinutes: number | null;
   /** Olvidó marcar "Salir": hora que se usó para las horas trabajadas (o null). */
   assumedExit: Date | null;
+  /** false = día sin almuerzo (media jornada). */
+  lunchExpected: boolean;
   status: DayStatus;
   missing: AttendanceEventType[];
   /** Fila en rojo: atraso o exceso de almuerzo. */
@@ -122,27 +129,37 @@ export function summarizeDay(
     lunchExcessMinutes = l.excess;
   }
 
+  const lunchExpected = rules.lunchExpected !== false;
+  // Día sin almuerzo y sin marcaciones de almuerzo: basta Entrar + Salir.
+  const noLunchDay = !lunchExpected && !salidaAlmuerzo && !regresoAlmuerzo;
+
   let workedMinutes: number | null = null;
   let assumedExit: Date | null = null;
   if (entrada && salidaAlmuerzo && regresoAlmuerzo && lunchMinutes !== null) {
     let exit = salidaFinal;
-    if (!exit && date < opts.today && rules.assumedExitTime) {
+    // La salida asumida (17:00) es para jornadas con almuerzo; en media jornada
+    // (ej. sábado) se pagaría de más, así que ahí no se asume.
+    if (!exit && lunchExpected && date < opts.today && rules.assumedExitTime) {
       // Olvidó marcar "Salir" en un día ya terminado: se cuenta hasta la hora asumida.
       const candidate = zonedToUtc(date, rules.assumedExitTime);
       if (candidate > regresoAlmuerzo) exit = assumedExit = candidate;
     }
     if (exit) workedMinutes = Math.max(0, minutesBetween(entrada, exit) - lunchMinutes);
+  } else if (entrada && salidaFinal && noLunchDay) {
+    workedMinutes = Math.max(0, minutesBetween(entrada, salidaFinal));
   }
 
   const present = [entrada, salidaAlmuerzo, regresoAlmuerzo, salidaFinal];
   const order: AttendanceEventType[] = ["ENTRADA", "SALIDA_ALMUERZO", "REGRESO_ALMUERZO", "SALIDA_FINAL"];
-  const missing = order.filter((_, i) => !present[i]);
+  const missing = order.filter(
+    (type, i) => !present[i] && !(noLunchDay && (type === "SALIDA_ALMUERZO" || type === "REGRESO_ALMUERZO")),
+  );
   const count = present.filter(Boolean).length;
 
   let status: DayStatus;
   if (permission?.kind === "dia_completo" && count === 0) status = "permiso";
   else if (count === 0) status = "sin_marcaciones";
-  else if (count === 4) status = "completo";
+  else if (missing.length === 0) status = "completo";
   else status = isToday ? "en_curso" : "incompleto";
 
   return {
@@ -157,6 +174,7 @@ export function summarizeDay(
     lateMinutes,
     workedMinutes,
     assumedExit,
+    lunchExpected,
     status,
     missing,
     flagged: lateMinutes > 0 || lunchExcessMinutes > 0,
@@ -178,6 +196,8 @@ export type ReportEmployee = {
   work_days: number[];
   /** Hora por día ({"1":"07:00"}); vacío = misma hora todos los días. */
   entry_times: unknown;
+  /** Días sin almuerzo (media jornada). Por defecto ninguno. */
+  no_lunch_days?: number[];
   active: boolean;
   created_at: string;
 };
@@ -289,6 +309,7 @@ export function buildDailyReport(input: {
           lunchAllowedMinutes: input.lunchAllowedMinutes,
           lunchToleranceMinutes: input.lunchToleranceMinutes,
           assumedExitTime: input.assumedExitTime,
+          lunchExpected: hasLunch(schedule, date),
         },
         { today: input.today, now: input.now },
         permission,

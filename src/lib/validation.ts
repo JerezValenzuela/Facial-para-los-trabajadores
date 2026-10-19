@@ -59,6 +59,8 @@ const HHMM_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
 export const scheduleSchema = z
   .object({
     work_days: z.array(z.coerce.number().int().min(1).max(7)).min(1, "Elige al menos un día de trabajo."),
+    /** Días sin almuerzo (media jornada). Solo cuentan los que también son días de trabajo. */
+    no_lunch_days: z.array(z.coerce.number().int().min(1).max(7)).default([]),
     same_time: z.boolean(),
     entry_time: z.string().default(""),
     day_times: z.record(z.string(), z.string()).default({}),
@@ -78,10 +80,11 @@ export const scheduleSchema = z
   })
   .transform((v) => {
     const work_days = [...new Set(v.work_days)].sort((a, b) => a - b);
-    if (v.same_time) return { work_days, entry_time: v.entry_time, entry_times: {} as Record<string, string> };
+    const no_lunch_days = [...new Set(v.no_lunch_days)].filter((d) => work_days.includes(d)).sort((a, b) => a - b);
+    if (v.same_time) return { work_days, no_lunch_days, entry_time: v.entry_time, entry_times: {} as Record<string, string> };
     const entry_times: Record<string, string> = Object.fromEntries(work_days.map((d) => [String(d), v.day_times[String(d)]]));
     // entry_time queda como la hora del primer día (referencia general).
-    return { work_days, entry_time: entry_times[String(work_days[0])], entry_times };
+    return { work_days, no_lunch_days, entry_time: entry_times[String(work_days[0])], entry_times };
   });
 export type ScheduleInput = z.infer<typeof scheduleSchema>;
 
@@ -98,6 +101,7 @@ export function parseEmployeeForm(formData: FormData) {
   });
   const schedule = scheduleSchema.safeParse({
     work_days: formData.getAll("work_days").map(String),
+    no_lunch_days: formData.getAll("no_lunch_days").map(String),
     same_time: formData.get("same_time") === "on",
     entry_time: String(formData.get("entry_time") ?? ""),
     day_times: Object.fromEntries(

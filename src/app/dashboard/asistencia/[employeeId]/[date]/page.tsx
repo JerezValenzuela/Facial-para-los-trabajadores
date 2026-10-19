@@ -5,7 +5,7 @@ import { requireAdminSession } from "@/lib/auth";
 import { uuid } from "@/lib/validation";
 import { EVENT_LABEL, EVENT_ORDER } from "@/lib/attendance/events";
 import { STATUS_LABEL, summarizeDay } from "@/lib/attendance/calc";
-import { entryTimeFor, scheduleFromRow, worksOn } from "@/lib/attendance/schedule";
+import { entryTimeFor, hasLunch, scheduleFromRow, worksOn } from "@/lib/attendance/schedule";
 import { signedEvidenceUrls } from "@/lib/evidence";
 import { formatDateLabel, formatMinutes, formatTime, isValidDateStr, todayInTz } from "@/lib/time";
 import { Badge, Notice, PageHeader } from "@/components/ui";
@@ -19,7 +19,7 @@ export default async function DayDetailPage(props: PageProps<"/dashboard/asisten
 
   const { supabase } = await requireAdminSession();
   const [{ data: emp }, { data: events }, { data: settings }, { data: branches }, { data: observation }] = await Promise.all([
-    supabase.from("employees").select("id, full_name, entry_time, work_days, entry_times, branch_id").eq("id", employeeId).maybeSingle(),
+    supabase.from("employees").select("id, full_name, entry_time, work_days, entry_times, no_lunch_days, branch_id").eq("id", employeeId).maybeSingle(),
     supabase
       .from("attendance_events")
       .select("id, event_type, occurred_at, branch_id, ip, match_distance, evidence_path")
@@ -48,6 +48,7 @@ export default async function DayDetailPage(props: PageProps<"/dashboard/asisten
       lunchAllowedMinutes: settings?.lunch_allowed_minutes ?? 60,
       lunchToleranceMinutes: settings?.lunch_tolerance_minutes ?? 10,
       assumedExitTime: settings?.default_exit_time ?? "17:00",
+      lunchExpected: hasLunch(schedule, date),
     },
     { today: todayInTz(), now: new Date() },
   );

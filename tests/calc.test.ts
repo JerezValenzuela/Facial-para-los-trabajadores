@@ -139,6 +139,85 @@ describe("tolerancia de almuerzo (60 + 10)", () => {
   });
 });
 
+describe("sábado sin almuerzo (media jornada)", () => {
+  const SAT = "2026-10-17";
+  const half = { ...rules, entryTime: "07:00", lunchExpected: false, assumedExitTime: "17:00" };
+  const after = { today: "2026-10-19", now: ec("2026-10-19", "09:00:00") };
+
+  it("Entrar 07:10 y Salir 13:02 → día completo con 5 h 52 (no se descuenta almuerzo)", () => {
+    const s = summarizeDay(SAT, { ENTRADA: ec(SAT, "07:10:00"), SALIDA_FINAL: ec(SAT, "13:02:00") }, half, after);
+    expect(s.status).toBe("completo");
+    expect(s.workedMinutes).toBe(352);
+    expect(s.missing).toEqual([]);
+    expect(s.lunchMinutes).toBeNull();
+    expect(s.lunchExpected).toBe(false);
+  });
+
+  it("un día normal (con almuerzo) con solo Entrar y Salir sigue incompleto, sin horas", () => {
+    const s = summarizeDay(SAT, { ENTRADA: ec(SAT, "07:10:00"), SALIDA_FINAL: ec(SAT, "13:02:00") }, { ...half, lunchExpected: true }, after);
+    expect(s.status).toBe("incompleto");
+    expect(s.workedMinutes).toBeNull();
+  });
+
+  it("si el sábado olvida marcar Salir, no se asumen las 17:00 (se pagaría de más)", () => {
+    const s = summarizeDay(SAT, { ENTRADA: ec(SAT, "07:00:00") }, half, after);
+    expect(s.status).toBe("incompleto");
+    expect(s.workedMinutes).toBeNull();
+    expect(s.assumedExit).toBeNull();
+    expect(s.missing).toEqual(["SALIDA_FINAL"]);
+  });
+
+  it("si igual sale al almuerzo el sábado, se descuenta lo que tomó", () => {
+    const s = summarizeDay(
+      SAT,
+      { ENTRADA: ec(SAT, "07:00:00"), SALIDA_ALMUERZO: ec(SAT, "12:00:00"), REGRESO_ALMUERZO: ec(SAT, "12:30:00"), SALIDA_FINAL: ec(SAT, "15:00:00") },
+      half,
+      after,
+    );
+    expect(s.status).toBe("completo");
+    expect(s.workedMinutes).toBe(480 - 30);
+  });
+
+  it("en el reporte: un empleado con sábado sin almuerzo suma sus horas", () => {
+    const juan: ReportEmployee = {
+      id: "j1",
+      full_name: "Juan Carlos Jerez",
+      cedula: "1712345675",
+      branch_id: "b2",
+      position: "Vendedor",
+      entry_time: "07:00:00",
+      work_days: [6],
+      entry_times: {},
+      no_lunch_days: [6],
+      active: true,
+      created_at: "2026-09-01T12:00:00Z",
+    };
+    const rows = buildDailyReport({
+      employees: [juan],
+      events: [
+        { employee_id: "j1", event_type: "ENTRADA", occurred_at: ec("2026-10-10", "07:00:00").toISOString(), work_date: "2026-10-10", branch_id: "b2" },
+        { employee_id: "j1", event_type: "SALIDA_FINAL", occurred_at: ec("2026-10-10", "13:01:00").toISOString(), work_date: "2026-10-10", branch_id: "b2" },
+        { employee_id: "j1", event_type: "ENTRADA", occurred_at: ec("2026-10-17", "07:10:00").toISOString(), work_date: "2026-10-17", branch_id: "b2" },
+        { employee_id: "j1", event_type: "SALIDA_FINAL", occurred_at: ec("2026-10-17", "13:02:00").toISOString(), work_date: "2026-10-17", branch_id: "b2" },
+      ],
+      from: "2026-10-01",
+      to: "2026-10-19",
+      today: "2026-10-19",
+      now: ec("2026-10-19", "09:00:00"),
+      toleranceMinutes: 10,
+      lunchAllowedMinutes: 60,
+      lunchToleranceMinutes: 10,
+      assumedExitTime: "17:00",
+    });
+    expect(rows.map((r) => [r.date, r.status, r.workedMinutes])).toEqual([
+      ["2026-10-17", "completo", 352],
+      ["2026-10-10", "completo", 361],
+      ["2026-10-03", "sin_marcaciones", null],
+    ]);
+    expect(summarizeByEmployee(rows).total.workedMinutes).toBe(352 + 361);
+  });
+});
+
 describe("salida olvidada: se cuenta hasta las 17:00", () => {
   const r = { ...rules, assumedExitTime: "17:00" };
   const marks = { ENTRADA: ec(DAY, "08:00:00"), SALIDA_ALMUERZO: ec(DAY, "13:00:00"), REGRESO_ALMUERZO: ec(DAY, "14:00:00") };
