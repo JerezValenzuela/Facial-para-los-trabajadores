@@ -118,3 +118,37 @@ export const IconLayout = ({ className = "h-7 w-7", strokeWidth = 2 }: Q) => (
     <rect x="3" y="16" width="7" height="5" />
   </svg>
 );
+export const IconArrowLeft = ({ className = "h-[18px] w-[18px]", strokeWidth = 2.5 }: Q) => (
+  <svg {...square(strokeWidth)} className={className}>
+    <path d="M19 12H5M12 19l-7-7 7-7" />
+  </svg>
+);
+export const IconTarget = ({ className = "h-11 w-11", strokeWidth = 2.5 }: Q) => (
+  <svg {...square(strokeWidth)} className={className}>
+    <circle cx="12" cy="12" r="9" />
+    <circle cx="12" cy="12" r="5" />
+    <circle cx="12" cy="12" r="1" />
+  </svg>
+);
+export const IconCameraLine = ({ className = "h-10 w-10", strokeWidth = 1.5 }: Q) => (
+  <svg {...square(strokeWidth)} className={className}>
+    <path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z" />
+    <circle cx="12" cy="13" r="3" />
+  </svg>
+);
+export const IconCheckLine = ({ className = "h-[18px] w-[18px]", strokeWidth = 3 }: Q) => (
+  <svg {...square(strokeWidth)} className={className}>
+    <path d="M20 6 9 17l-5-5" />
+  </svg>
+);
+export const IconFileText = ({ className = "h-[26px] w-[26px]", strokeWidth = 2 }: Q) => (
+  <svg {...square(strokeWidth)} className={className}>
+    <path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z" />
+    <path d="M14 2v5h6M9 13h6M9 17h4" />
+  </svg>
+);
+export const IconAlertLine = ({ className = "h-8 w-8", strokeWidth = 2.5 }: Q) => (
+  <svg {...square(strokeWidth)} className={className}>
+    <path d="M12 3 2 21h20L12 3zM12 10v5M12 18h.01" />
+  </svg>
+);

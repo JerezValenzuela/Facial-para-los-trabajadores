@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { KioskClient } from "./kiosk-client";
+import { archivo } from "../fonts";
 
 export const metadata: Metadata = { title: "Marcar asistencia" };
 
@@ -12,5 +13,9 @@ export default async function KioskPage(props: PageProps<"/marcar">) {
   const sp = await props.searchParams;
   const branchCode =
     typeof sp.sucursal === "string" && /^[a-z0-9-]{2,32}$/.test(sp.sucursal) ? sp.sucursal : undefined;
-  return <KioskClient branchCode={branchCode} />;
+  return (
+    <div className={`${archivo.className} flex flex-1 flex-col`}>
+      <KioskClient branchCode={branchCode} />
+    </div>
+  );
 }

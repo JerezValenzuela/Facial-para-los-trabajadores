@@ -1,11 +1,9 @@
 import Link from "next/link";
-import { Archivo } from "next/font/google";
 import { todayInTz } from "@/lib/time";
 import { IconArrowRight, IconLayout, IconScanFace, IconTap } from "@/components/icons";
 import { HomeClock } from "./home-clock";
+import { archivo } from "./fonts";
 
-// Fuente de la página de inicio (variable: todos los pesos).
-const archivo = Archivo({ subsets: ["latin"], display: "swap" });
 
 const FOCUS = "focus-visible:outline-[3px] focus-visible:outline-offset-[3px] focus-visible:outline-[#201e1d] focus-visible:outline-solid";
 const PRESS =

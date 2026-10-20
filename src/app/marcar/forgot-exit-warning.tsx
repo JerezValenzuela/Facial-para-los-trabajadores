@@ -29,19 +29,19 @@ export function ForgotExitWarning({
   return (
     <div
       role="alert"
-      className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-red-700 px-6 text-center text-white"
+      className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-[#ec3013] px-6 text-center text-white"
     >
       <div className="text-8xl motion-safe:animate-pulse" aria-hidden>
         ⚠️
       </div>
-      <p className="mt-6 text-3xl font-semibold text-red-100">{firstName}:</p>
+      <p className="mt-6 text-3xl font-semibold text-white/90">{firstName}:</p>
       <h1 className="mt-2 max-w-4xl text-5xl leading-tight font-black tracking-tight uppercase sm:text-6xl">
         {dayLabel} olvidaste marcar tu salida
       </h1>
-      <p className="mt-6 max-w-2xl text-2xl font-medium text-red-50">
+      <p className="mt-6 max-w-2xl text-2xl font-medium text-white">
         ¡No te olvides! Al terminar tu jornada marca <b>“Salir”</b>.
       </p>
-      <p className="mt-10 rounded-full bg-black/25 px-6 py-2 text-xl font-semibold tabular-nums">
+      <p className="mt-10 border-2 border-[#201e1d] bg-white px-6 py-2 text-xl font-extrabold text-[#201e1d] tabular-nums shadow-[6px_6px_0_#201e1d]">
         Continuar en {left}…
       </p>
     </div>

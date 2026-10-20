@@ -23,6 +23,15 @@ import Link from "next/link";
 import { KIOSK_ACTION_LABEL, type AttendanceEventType, type KioskOption } from "@/lib/attendance/events";
 import { formatPermissionHours, permissionEnd, PERMISSION_HOUR_OPTIONS } from "@/lib/attendance/permissions";
 import { ForgotExitWarning } from "./forgot-exit-warning";
+import {
+  IconAlertLine,
+  IconArrowLeft,
+  IconArrowRight,
+  IconCameraLine,
+  IconCheckLine,
+  IconFileText,
+  IconTarget,
+} from "@/components/icons";
 
 // ---------------------------------------------------------------------------
 // Tipos y constantes
@@ -619,188 +628,365 @@ export function KioskClient({ branchCode }: { branchCode?: string }) {
   }, []);
 
   // ---------------------------------------------------------------------------
-  // Render
+  // Render (solo interfaz: toda la lógica de cámara, prueba de vida y servidor está arriba)
   // ---------------------------------------------------------------------------
-  const showCamera = !["blocked"].includes(phase.name);
-  const ringColor =
-    phase.name === "challenge" || phase.name === "final"
-      ? "ring-sky-400"
-      : phase.name === "success"
-        ? "ring-emerald-400"
-        : phase.name === "notice" && phase.tone === "error"
-          ? "ring-red-500"
-          : "ring-white/15";
+  const inChallenge = phase.name === "challenge" || phase.name === "final";
+  // Después de reconocer la cara (opciones, permiso, aviso, registrando o éxito).
+  const verified =
+    phase.name === "identified" ||
+    phase.name === "permission" ||
+    phase.name === "reminder" ||
+    phase.name === "marking" ||
+    phase.name === "success";
+  const frameBorder = inChallenge
+    ? "border-4 border-[#1747a6]"
+    : verified
+      ? "border-4 border-[#1f9d55]"
+      : phase.name === "notice" && phase.tone === "error"
+        ? "border-4 border-[#ec3013]"
+        : "border-2 border-[#201e1d]";
+  // Zona a la que hay que mirar en la barra de la bolita (Izquierda / Centro / Derecha).
+  const currentStep = phase.name === "challenge" ? phase.steps[phase.stepIndex] : undefined;
+  const targetZone: "L" | "C" | "R" | null =
+    phase.name === "final"
+      ? "C"
+      : phase.name === "challenge"
+        ? currentStep === "turn_left"
+          ? "L"
+          : currentStep === "turn_right"
+            ? "R"
+            : "C"
+        : null;
 
   return (
-    <main className="flex min-h-screen flex-1 flex-col bg-slate-950 text-white select-none">
-      {/* Barra superior */}
-      <header className="flex items-center justify-between px-6 py-4 sm:px-10">
+    <div className="grid h-dvh min-h-[460px] flex-1 grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden bg-[#f3f2f2] text-[#201e1d] select-none">
+      {/* Cabecera */}
+      <header className="flex flex-wrap items-center justify-between gap-4 border-b-2 border-[#201e1d] px-[clamp(20px,3vw,40px)] py-3">
         <div className="flex items-center gap-3">
-          <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-brand-600 text-xl font-bold">J</div>
-          <div className="leading-tight">
-            <p className="text-lg font-semibold">JerezCons</p>
-            <p className="text-sm text-slate-400">
-              {branchName ? `Sucursal ${branchName}` : "Control de asistencia"}
-              {devMode && <span className="ml-2 rounded bg-amber-500/20 px-1.5 py-0.5 text-xs text-amber-300">DEV_MODE</span>}
+          <div className="grid h-8 w-8 shrink-0 grid-cols-2" aria-hidden>
+            <span className="bg-[#e8590c]" />
+            <span className="bg-[#1747a6]" />
+            <span className="bg-[#1747a6]" />
+            <span className="bg-[#e8590c]" />
+          </div>
+          <div className="flex flex-col gap-px">
+            <p className="text-xl leading-none font-extrabold tracking-[-0.02em]">
+              <span className="text-[#e8590c]">Jerez</span>
+              <span className="text-[#1747a6]">Cons</span>
+            </p>
+            <p className="text-[13px] font-medium text-[#55504d]">
+              Control de asistencia{branchName ? ` · Sucursal ${branchName}` : ""}
+              {devMode && (
+                <span className="ml-2 bg-[#fde7da] px-1.5 py-0.5 text-[11px] font-bold tracking-wider text-[#a83d05]">
+                  DEV_MODE
+                </span>
+              )}
             </p>
           </div>
         </div>
-        <div className="text-right">
-          <p className="font-mono text-3xl font-semibold tabular-nums sm:text-4xl">{clock.time}</p>
-          <p className="text-sm text-slate-400 first-letter:uppercase">{clock.date}</p>
+        <div className="flex items-baseline gap-3.5">
+          <p className="text-sm font-medium text-[#55504d] first-letter:uppercase">{clock.date}</p>
+          <p className="text-[28px] leading-none font-extrabold tracking-[-0.02em] tabular-nums">{clock.time}</p>
         </div>
       </header>
 
-      <div className="flex flex-1 flex-col items-center justify-center gap-6 px-6 pb-8">
-        {phase.name === "blocked" ? (
-          <div className="max-w-xl rounded-2xl border border-red-500/30 bg-red-500/10 p-8 text-center">
-            <p className="text-5xl">⛔</p>
-            <h1 className="mt-4 text-2xl font-semibold">{phase.title}</h1>
-            <p className="mt-3 text-lg text-slate-300">{phase.message}</p>
-          </div>
-        ) : null}
-
-        {/* Cámara */}
-        <div
-          className={`relative aspect-[4/3] w-full max-w-2xl overflow-hidden rounded-3xl bg-slate-900 ring-4 transition-colors ${ringColor} ${
-            showCamera ? "" : "hidden"
+      <main className="grid min-h-0 auto-rows-[minmax(max-content,1fr)] grid-cols-[repeat(auto-fit,minmax(min(100%,420px),1fr))] overflow-x-hidden overflow-y-auto">
+        {/* Columna izquierda: cámara (siempre montada; se oculta si el equipo está bloqueado) */}
+        <section
+          className={`relative z-[1] flex px-[clamp(20px,3vw,40px)] py-[clamp(12px,3vh,32px)] shadow-[2px_0_0_#201e1d,0_2px_0_#201e1d] ${
+            phase.name === "blocked" ? "hidden" : ""
           }`}
         >
-          <video ref={videoRef} className="absolute inset-0 h-full w-full -scale-x-100 object-cover" muted playsInline />
-          {/* Guía ovalada */}
-          <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-            <div className="h-[72%] w-[46%] rounded-[50%] border-4 border-dashed border-white/25" />
-          </div>
+          <div className={`relative min-h-[240px] flex-1 overflow-hidden bg-[#4a4644] transition-colors ${frameBorder}`}>
+            <video ref={videoRef} className="absolute inset-0 h-full w-full -scale-x-100 object-cover" muted playsInline />
+            {/* Guía ovalada */}
+            <div className="pointer-events-none absolute top-[46%] left-1/2 aspect-[3/4] w-[min(42%,300px)] -translate-x-1/2 -translate-y-1/2 rounded-[50%] border-[3px] border-dashed border-white/85" />
 
-          {/* Indicador de giro de cabeza */}
-          {(phase.name === "challenge" || phase.name === "final") && (
-            <div className="absolute inset-x-10 top-4 h-2 rounded-full bg-white/20">
-              <div ref={meterRef} className="absolute top-1/2 h-5 w-5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-sky-400 shadow" />
+            {/* Barra de la bolita que sigue la cabeza */}
+            {inChallenge && (
+              <div className="pointer-events-none absolute right-4 bottom-4 left-4 grid h-12 grid-cols-3 border-2 border-[#201e1d] bg-white">
+                <ZoneCell label="Izquierda" active={targetZone === "L"} align="start" />
+                <ZoneCell label="Centro" active={targetZone === "C"} align="center" />
+                <ZoneCell label="Derecha" active={targetZone === "R"} align="end" />
+                <div
+                  ref={meterRef}
+                  className="absolute top-1/2 left-1/2 h-[26px] w-[26px] -translate-x-1/2 -translate-y-1/2 rounded-full border-[3px] border-white bg-[#1747a6] shadow-[0_0_0_2px_#1747a6]"
+                />
+              </div>
+            )}
+
+            {/* Capas de estado sobre el video */}
+            {phase.name === "boot" && (
+              <CameraOverlay icon={<IconCameraLine />}>{phase.note}</CameraOverlay>
+            )}
+            {(phase.name === "preparing" || phase.name === "verifying") && (
+              <CameraOverlay icon={<Spinner />}>
+                {phase.name === "preparing" ? "Preparando verificación…" : "Verificando identidad…"}
+              </CameraOverlay>
+            )}
+            {phase.name === "marking" && (
+              <CameraOverlay icon={<Spinner />}>Registrando {phase.label.toLowerCase()}…</CameraOverlay>
+            )}
+            {phase.name === "success" && (
+              <div className="absolute inset-0 flex items-center justify-center bg-[#1f9d55]/85">
+                <div className="flex h-24 w-24 items-center justify-center border-2 border-[#201e1d] bg-white text-[#1f9d55] shadow-[6px_6px_0_#201e1d]">
+                  <IconCheckLine className="h-14 w-14" strokeWidth={3} />
+                </div>
+              </div>
+            )}
+            {phase.name === "notice" && (
+              <div
+                className={`absolute inset-0 flex items-center justify-center ${
+                  phase.tone === "error" ? "bg-[#ec3013]/80" : "bg-[#1747a6]/80"
+                }`}
+              >
+                <div className="flex h-20 w-20 items-center justify-center border-2 border-[#201e1d] bg-white text-[#201e1d] shadow-[6px_6px_0_#201e1d]">
+                  <IconAlertLine className="h-10 w-10" />
+                </div>
+              </div>
+            )}
+            {verified && phase.name !== "success" && phase.name !== "marking" && (
+              <div className="absolute bottom-4 left-4 flex items-center gap-2 bg-[#1f9d55] px-3.5 py-2.5 text-sm font-extrabold tracking-[0.08em] text-white uppercase">
+                <IconCheckLine />
+                Cara verificada
+              </div>
+            )}
+          </div>
+        </section>
+
+        {/* Columna derecha: instrucciones o botones */}
+        <section className="flex min-h-0 flex-col justify-center gap-[clamp(16px,3vh,28px)] overflow-y-auto px-[clamp(20px,3vw,48px)] py-[clamp(12px,3vh,48px)]">
+          {phase.name === "blocked" && (
+            <div className="mx-auto w-full max-w-xl border-2 border-[#201e1d] bg-white p-8 shadow-[6px_6px_0_#201e1d]">
+              <div className="flex h-16 w-16 items-center justify-center border-2 border-[#201e1d] bg-[#ec3013] text-white">
+                <IconAlertLine />
+              </div>
+              <h1 className="mt-5 text-[clamp(26px,3.4vw,40px)] leading-tight font-extrabold tracking-[-0.02em]">{phase.title}</h1>
+              <p className="mt-3 text-lg leading-snug text-[#55504d]">{phase.message}</p>
             </div>
           )}
 
-          {/* Capas de estado sobre el video */}
-          {phase.name === "boot" && <Overlay>{phase.note}</Overlay>}
-          {(phase.name === "preparing" || phase.name === "verifying") && (
-            <Overlay>
-              <Spinner /> {phase.name === "preparing" ? "Preparando verificación…" : "Verificando identidad…"}
-            </Overlay>
+          {phase.name === "boot" && (
+            <Lead
+              label="Preparando"
+              title="Colócate frente a la cámara"
+              text="Pon la cara dentro del óvalo. En unos segundos empieza la prueba de vida."
+            />
           )}
-          {phase.name === "marking" && (
-            <Overlay>
-              <Spinner /> Registrando {phase.label.toLowerCase()}…
-            </Overlay>
+
+          {phase.name === "idle" && (
+            <Lead
+              label="Registro facial"
+              title={hint}
+              text="Pon la cara dentro del óvalo. En unos segundos empieza la prueba de vida."
+            />
           )}
+
+          {phase.name === "preparing" && <Lead label="Preparando" title="Preparando verificación…" />}
+
+          {phase.name === "challenge" && (
+            <StepPanel
+              num={Math.min(phase.stepIndex + 1, phase.steps.length + 1)}
+              total={phase.steps.length + 1}
+              icon={currentStep === "turn_left" ? <IconArrowLeft className="h-11 w-11" /> : currentStep === "turn_right" ? <IconArrowRight className="h-11 w-11" strokeWidth={2.5} /> : <IconTarget />}
+              title={currentStep ? STEP_LABEL[currentStep] : ""}
+              hint={hint}
+            />
+          )}
+
+          {phase.name === "final" && (
+            <StepPanel num={phase.total} total={phase.total} icon={<IconTarget />} title="Ahora mira al centro, de frente" />
+          )}
+
+          {phase.name === "verifying" && <Lead label="Verificando" title="Verificando identidad…" />}
+
+          {phase.name === "identified" && (
+            <div className="flex flex-col gap-[clamp(8px,1.8vh,20px)]">
+              <div className="flex flex-col gap-1">
+                <h2 className="text-[clamp(28px,min(4vw,6vh),56px)] leading-none font-extrabold tracking-[-0.03em]">
+                  ¡Hola, {phase.firstName}!
+                </h2>
+                <p className="text-[clamp(16px,2.4vh,20px)] font-medium">¿Qué vas a registrar?</p>
+              </div>
+              <ChoiceCountdown key={phase.ticket} seconds={phase.seconds} />
+              <div className="grid grid-cols-2 gap-[clamp(8px,1.6vh,14px)] pr-2 pb-2">
+                {phase.options.map((o) => (
+                  <OptionButton
+                    key={o.event}
+                    option={o}
+                    suggested={o.event === phase.suggested}
+                    onChoose={() => void confirmMark(o.event)}
+                  />
+                ))}
+                <button
+                  type="button"
+                  onClick={startPermission}
+                  className={`col-span-full flex items-center justify-between gap-4 bg-[#1747a6] px-[18px] py-[clamp(8px,1.6vh,18px)] text-left text-white hover:bg-[#123a8a] active:bg-[#0e2e6e] ${PRESS} ${FOCUS}`}
+                >
+                  <span className="flex items-center gap-3.5">
+                    <IconFileText />
+                    <span className="flex flex-col gap-0.5">
+                      <span className="text-[clamp(18px,3vh,22px)] font-extrabold">Permiso</span>
+                      <span className="text-sm opacity-90">Todo el día o por horas</span>
+                    </span>
+                  </span>
+                  <IconArrowRight className="h-6 w-6 shrink-0" />
+                </button>
+              </div>
+              <button
+                type="button"
+                onClick={cancelIdentified}
+                className={`self-start text-[15px] font-semibold text-[#55504d] underline underline-offset-[3px] hover:text-[#e8590c] ${FOCUS}`}
+              >
+                No soy {phase.firstName} · cancelar
+              </button>
+            </div>
+          )}
+
+          {phase.name === "marking" && <Lead label="Registrando" title={`Registrando ${phase.label.toLowerCase()}…`} />}
+
           {phase.name === "success" && (
-            <div className="absolute inset-0 flex flex-col items-center justify-center bg-emerald-600/95 p-6 text-center">
-              <div className="flex h-24 w-24 items-center justify-center rounded-full bg-white text-6xl text-emerald-600">✓</div>
-              <p className="mt-5 text-3xl font-bold">{phase.title}</p>
-              <p className="mt-2 font-mono text-5xl font-bold tabular-nums">{phase.time}</p>
-              <p className="mt-3 text-xl">Gracias, {phase.firstName}</p>
+            <div className="flex flex-col gap-[clamp(10px,2vh,18px)]">
+              <p className="text-[13px] font-bold tracking-[0.12em] text-[#1f9d55] uppercase">Registro exitoso</p>
+              <h2 className="text-[clamp(30px,min(4vw,6.5vh),56px)] leading-none font-extrabold tracking-[-0.03em]">{phase.title}</h2>
+              <p className="text-[clamp(44px,min(6vw,10vh),88px)] leading-none font-extrabold tracking-[-0.03em] tabular-nums">
+                {phase.time}
+              </p>
+              <p className="text-xl font-medium">Gracias, {phase.firstName}</p>
               {phase.info && (
-                <p className={`mt-4 rounded-xl px-4 py-2 text-lg font-semibold ${phase.warn ? "bg-amber-400 text-amber-950" : "bg-white/20"}`}>
+                <p
+                  className={`max-w-xl border-2 border-[#201e1d] px-4 py-3 text-lg font-bold shadow-[4px_4px_0_#201e1d] ${
+                    phase.warn ? "bg-[#ec3013] text-white" : "bg-white text-[#201e1d]"
+                  }`}
+                >
                   {phase.info}
                 </p>
               )}
             </div>
           )}
+
           {phase.name === "notice" && (
             <div
-              className={`absolute inset-0 flex flex-col items-center justify-center p-8 text-center ${
-                phase.tone === "error" ? "bg-red-700/95" : "bg-sky-700/95"
+              className={`max-w-xl border-2 border-[#201e1d] p-[clamp(18px,3vh,32px)] text-white shadow-[6px_6px_0_#201e1d] ${
+                phase.tone === "error" ? "bg-[#ec3013]" : "bg-[#1747a6]"
               }`}
             >
-              <p className="text-3xl font-bold">{phase.title}</p>
-              <p className="mt-4 max-w-lg text-xl">{phase.message}</p>
+              <h2 className="text-[clamp(26px,min(3.4vw,5.5vh),44px)] leading-tight font-extrabold tracking-[-0.02em]">{phase.title}</h2>
+              <p className="mt-3 text-[clamp(16px,2.4vh,20px)] leading-snug">{phase.message}</p>
             </div>
           )}
-        </div>
 
-        {/* Panel de instrucciones / acciones */}
-        {phase.name === "idle" && <Instruction big>{hint}</Instruction>}
+          {phase.name === "reminder" && (
+            <ForgotExitWarning
+              firstName={phase.next.firstName}
+              dayLabel={phase.dayLabel}
+              seconds={FORGOT_EXIT_REMINDER_SECONDS}
+            />
+          )}
 
-        {phase.name === "challenge" && (
-          <div className="w-full max-w-2xl text-center">
-            <p className="text-sm tracking-wide text-slate-400 uppercase">
-              Prueba de vida · paso {Math.min(phase.stepIndex + 1, phase.steps.length + 1)} de {phase.steps.length + 1}
-            </p>
-            <p className="mt-2 text-4xl font-bold">
-              <StepIcon step={phase.steps[phase.stepIndex]} /> {STEP_LABEL[phase.steps[phase.stepIndex]]}
-            </p>
-            <p className="mt-2 h-7 text-xl text-sky-300">{hint}</p>
-            <StepDots total={phase.steps.length + 1} current={phase.stepIndex} />
-          </div>
-        )}
+          {phase.name === "permission" && (
+            <PermissionPanel
+              phase={phase}
+              onChange={(patch) => setPhase({ ...phase, ...patch })}
+              onSubmit={(kind) => void submitPermission(kind)}
+              onCancel={cancelIdentified}
+            />
+          )}
+        </section>
+      </main>
 
-        {phase.name === "final" && (
-          <div className="w-full max-w-2xl text-center">
-            <p className="text-sm tracking-wide text-slate-400 uppercase">
-              Prueba de vida · paso {phase.total} de {phase.total}
-            </p>
-            <p className="mt-2 text-4xl font-bold">🎯 Ahora mira al centro, de frente</p>
-            <StepDots total={phase.total} current={phase.total - 1} />
-          </div>
-        )}
-
-        {phase.name === "identified" && (
-          <div className="flex w-full max-w-2xl flex-col items-center gap-4">
-            <p className="text-4xl font-bold">¡Hola, {phase.firstName}! 👋</p>
-            <p className="text-2xl text-slate-300">¿Vas a…?</p>
-            <ChoiceCountdown key={phase.ticket} seconds={phase.seconds} />
-            <div className="grid w-full grid-cols-1 gap-3 sm:grid-cols-2">
-              {phase.options.map((o) => (
-                <OptionButton
-                  key={o.event}
-                  option={o}
-                  suggested={o.event === phase.suggested}
-                  onChoose={() => void confirmMark(o.event)}
-                />
-              ))}
-            </div>
-            <button
-              type="button"
-              onClick={startPermission}
-              className="w-full rounded-2xl border-2 border-sky-400/60 bg-sky-500/15 px-6 py-5 text-left text-3xl font-bold text-sky-100 transition hover:bg-sky-500/25 active:scale-[0.99]"
-            >
-              📝 Permiso
-              <span className="mt-1 block text-sm font-medium text-sky-200">Todo el día o por horas</span>
-            </button>
-            <button type="button" onClick={cancelIdentified} className="text-lg text-slate-400 underline-offset-4 hover:text-white hover:underline">
-              No soy {phase.firstName} · cancelar
-            </button>
-          </div>
-        )}
-
-        {phase.name === "reminder" && (
-          <ForgotExitWarning
-            firstName={phase.next.firstName}
-            dayLabel={phase.dayLabel}
-            seconds={FORGOT_EXIT_REMINDER_SECONDS}
-          />
-        )}
-
-        {phase.name === "permission" && (
-          <PermissionPanel
-            phase={phase}
-            onChange={(patch) => setPhase({ ...phase, ...patch })}
-            onSubmit={(kind) => void submitPermission(kind)}
-            onCancel={cancelIdentified}
-          />
-        )}
-      </div>
-
-      <footer className="flex flex-col items-center gap-3 px-6 pb-5 text-center">
+      {/* Pie */}
+      <footer className="flex flex-wrap items-center justify-between gap-4 border-t-2 border-[#201e1d] px-[clamp(20px,3vw,40px)] py-2.5">
         <Link
           href="/"
-          className="rounded-xl border border-white/15 px-5 py-2.5 text-base font-medium text-slate-200 transition hover:bg-white/10"
+          className={`flex items-center gap-2 border-2 border-[#201e1d] bg-white px-3.5 py-2 text-[15px] font-bold text-[#201e1d] shadow-[4px_4px_0_#201e1d] transition-[background-color,translate,box-shadow] duration-100 hover:bg-[#fde7da] active:translate-x-[3px] active:translate-y-[3px] active:shadow-[1px_1px_0_#201e1d] ${FOCUS}`}
         >
-          ← Volver al inicio
+          <IconArrowLeft />
+          Volver al inicio
         </Link>
-        <p className="text-xs text-slate-500">
+        <span className="max-w-[560px] text-[13px] text-[#55504d]">
           La hora registrada es la hora oficial del servidor. Tus datos biométricos se tratan conforme a la LOPDP.
-        </p>
+        </span>
       </footer>
-    </main>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Piezas de interfaz (sin lógica)
+// ---------------------------------------------------------------------------
+const FOCUS = "focus-visible:outline-[3px] focus-visible:outline-offset-[3px] focus-visible:outline-[#201e1d] focus-visible:outline-solid";
+/** Botón con borde negro y sombra sólida que se hunde al pulsar. */
+const PRESS =
+  "cursor-pointer border-2 border-[#201e1d] shadow-[6px_6px_0_#201e1d] transition-[background-color,translate,box-shadow] duration-100 " +
+  "active:translate-x-1 active:translate-y-1 active:shadow-[2px_2px_0_#201e1d] disabled:cursor-not-allowed disabled:opacity-50";
+
+/** Una zona de la barra de la bolita; la zona a la que hay que mirar va en naranja claro. */
+function ZoneCell({ label, active, align }: { label: string; active: boolean; align: "start" | "center" | "end" }) {
+  const position =
+    align === "start" ? "justify-start pl-3" : align === "end" ? "justify-end pr-3" : "justify-center border-x-2 border-[#201e1d]";
+  return (
+    <div
+      className={`flex items-center text-xs font-bold tracking-[0.1em] uppercase ${position} ${active ? "bg-[#fde7da]" : "bg-white"}`}
+    >
+      {label}
+    </div>
+  );
+}
+
+function CameraOverlay({ icon, children }: { icon: React.ReactNode; children: React.ReactNode }) {
+  return (
+    <div className="absolute inset-0 flex flex-col items-center justify-center gap-3.5 bg-[#201e1d]/55 p-6 text-center text-white">
+      {icon}
+      <p className="text-xl font-bold">{children}</p>
+    </div>
+  );
+}
+
+/** Bloque de texto de la columna derecha: etiqueta azul, título grande y texto opcional. */
+function Lead({ label, title, text }: { label: string; title: string; text?: string }) {
+  return (
+    <div className="flex flex-col gap-4">
+      <p className="text-[13px] font-bold tracking-[0.12em] text-[#1747a6] uppercase">{label}</p>
+      <h2 className="text-[clamp(30px,min(4vw,7vh),56px)] leading-none font-extrabold tracking-[-0.03em] text-balance">{title}</h2>
+      {text && <p className="max-w-[420px] text-lg leading-[1.45] text-pretty">{text}</p>}
+    </div>
+  );
+}
+
+/** Paso de la prueba de vida: etiqueta, cuadro naranja con el ícono, instrucción y 3 barras. */
+function StepPanel({
+  num,
+  total,
+  icon,
+  title,
+  hint,
+}: {
+  num: number;
+  total: number;
+  icon: React.ReactNode;
+  title: string;
+  hint?: string;
+}) {
+  return (
+    <div className="flex flex-col gap-[clamp(16px,3vh,24px)]">
+      <p className="text-[13px] font-bold tracking-[0.12em] text-[#1747a6] uppercase">
+        Prueba de vida · Paso {num} de {total}
+      </p>
+      <div className="flex h-[clamp(64px,10vh,88px)] w-[clamp(64px,10vh,88px)] items-center justify-center border-2 border-[#201e1d] bg-[#e8590c] text-white shadow-[6px_6px_0_#201e1d]">
+        {icon}
+      </div>
+      <h2 className="text-[clamp(34px,min(4vw,7vh),60px)] leading-none font-extrabold tracking-[-0.03em] text-balance">{title}</h2>
+      <p className="min-h-7 text-xl font-bold text-[#1747a6]">{hint}</p>
+      <div className="grid max-w-[420px] gap-2" style={{ gridTemplateColumns: `repeat(${total}, minmax(0, 1fr))` }}>
+        {Array.from({ length: total }, (_, i) => (
+          <span
+            key={i}
+            className={`h-2.5 ${i < num - 1 ? "bg-[#1747a6]" : i === num - 1 ? "bg-[#e8590c]" : "bg-[#dcd9d7]"}`}
+          />
+        ))}
+      </div>
+    </div>
   );
 }
 
@@ -816,30 +1002,18 @@ function ChoiceCountdown({ seconds }: { seconds: number }) {
   }, [seconds]);
   const urgent = left <= 5;
   return (
-    <div className="w-full max-w-md">
-      <p className={`text-center text-lg font-semibold ${urgent ? "text-red-300" : "text-slate-300"}`}>
-        ⏱️ Tienes {left} {left === 1 ? "segundo" : "segundos"} para elegir
+    <div className="flex flex-col gap-2">
+      <p className={`text-[15px] font-bold ${urgent ? "text-[#ec3013]" : "text-[#e8590c]"}`}>
+        Tienes {left} {left === 1 ? "segundo" : "segundos"} para elegir
       </p>
-      <div className="mt-2 h-2 overflow-hidden rounded-full bg-white/15">
+      <div className="h-2.5 border-2 border-[#201e1d] bg-[#dcd9d7] box-content">
         <div
-          className={`h-full rounded-full transition-[width] duration-300 ease-linear ${urgent ? "bg-red-400" : "bg-brand-500"}`}
+          className={`h-full transition-[width] duration-300 ease-linear ${urgent ? "bg-[#ec3013]" : "bg-[#e8590c]"}`}
           style={{ width: `${(left / seconds) * 100}%` }}
         />
       </div>
     </div>
   );
-}
-
-function Overlay({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="absolute inset-0 flex items-center justify-center gap-3 bg-slate-950/70 text-xl font-medium">
-      {children}
-    </div>
-  );
-}
-
-function Instruction({ children, big }: { children: React.ReactNode; big?: boolean }) {
-  return <p className={`text-center font-semibold ${big ? "text-3xl" : "text-xl"}`}>{children}</p>;
 }
 
 type PermissionPhase = Extract<Phase, { name: "permission" }>;
@@ -858,60 +1032,69 @@ function PermissionPanel({
 }) {
   const validTime = /^\d{2}:\d{2}$/.test(phase.startTime);
   return (
-    <div className="flex w-full max-w-2xl flex-col items-center gap-4">
-      <p className="text-4xl font-bold">📝 Permiso · {phase.firstName}</p>
+    <div className="flex flex-col gap-[clamp(10px,2vh,20px)]">
+      <div className="flex items-center gap-3">
+        <span className="flex h-12 w-12 items-center justify-center border-2 border-[#201e1d] bg-[#1747a6] text-white">
+          <IconFileText />
+        </span>
+        <h2 className="text-[clamp(26px,min(3.6vw,6vh),48px)] leading-none font-extrabold tracking-[-0.03em]">
+          Permiso · {phase.firstName}
+        </h2>
+      </div>
       {phase.step === "kind" ? (
         <>
-          <p className="text-2xl text-slate-300">¿De cuánto es tu permiso?</p>
-          <div className="grid w-full grid-cols-1 gap-3 sm:grid-cols-2">
+          <p className="text-[clamp(16px,2.4vh,20px)] font-medium">¿De cuánto es tu permiso?</p>
+          <div className="grid grid-cols-1 gap-[clamp(8px,1.6vh,14px)] pr-2 pb-2 sm:grid-cols-2">
             <button
               type="button"
               disabled={phase.sending}
               onClick={() => onSubmit("dia_completo")}
-              className="rounded-2xl bg-brand-600 px-6 py-7 text-left text-3xl font-bold shadow-lg hover:bg-brand-500 disabled:opacity-60"
+              className={`flex flex-col items-start gap-1 bg-[#e8590c] px-[18px] py-[clamp(12px,2.4vh,24px)] text-left text-white hover:bg-[#d24f08] active:bg-[#a83d05] ${PRESS} ${FOCUS}`}
             >
-              {phase.sending ? "Registrando…" : "Todo el día"}
-              <span className="mt-1 block text-sm font-medium text-brand-100">No trabajas hoy</span>
+              <span className="text-[clamp(20px,3.2vh,30px)] leading-[1.05] font-extrabold">
+                {phase.sending ? "Registrando…" : "Todo el día"}
+              </span>
+              <span className="text-sm font-medium">No trabajas hoy</span>
             </button>
             <button
               type="button"
               disabled={phase.sending}
               onClick={() => onChange({ step: "hours" })}
-              className="rounded-2xl bg-slate-700 px-6 py-7 text-left text-3xl font-bold shadow-lg hover:bg-slate-600"
+              className={`flex flex-col items-start gap-1 bg-white px-[18px] py-[clamp(12px,2.4vh,24px)] text-left text-[#201e1d] hover:bg-[#fde7da] active:bg-[#f9cdb3] ${PRESS} ${FOCUS}`}
             >
-              Por horas
-              <span className="mt-1 block text-sm font-medium text-slate-300">Eliges cuántas y desde qué hora</span>
+              <span className="text-[clamp(20px,3.2vh,30px)] leading-[1.05] font-extrabold">Por horas</span>
+              <span className="text-sm font-medium text-[#55504d]">Eliges cuántas y desde qué hora</span>
             </button>
           </div>
         </>
       ) : (
         <>
-          <p className="text-2xl text-slate-300">¿Cuántas horas?</p>
-          <div className="grid w-full grid-cols-3 gap-2 sm:grid-cols-5">
+          <p className="text-[clamp(16px,2.4vh,20px)] font-medium">¿Cuántas horas?</p>
+          <div className="grid grid-cols-3 gap-2 pr-1 pb-1 sm:grid-cols-5">
             {PERMISSION_HOUR_OPTIONS.map((h) => (
               <button
                 key={h}
                 type="button"
                 onClick={() => onChange({ hours: h })}
-                className={`rounded-xl px-3 py-4 text-xl font-bold transition ${
-                  phase.hours === h ? "bg-brand-600 ring-4 ring-brand-300/60" : "bg-slate-700 hover:bg-slate-600"
+                className={`border-2 border-[#201e1d] px-2 py-[clamp(6px,1.4vh,12px)] text-lg font-extrabold shadow-[3px_3px_0_#201e1d] transition-[background-color,translate,box-shadow] duration-100 active:translate-x-0.5 active:translate-y-0.5 active:shadow-[1px_1px_0_#201e1d] ${FOCUS} ${
+                  phase.hours === h ? "bg-[#e8590c] text-white" : "bg-white text-[#201e1d] hover:bg-[#fde7da]"
                 }`}
               >
                 {formatPermissionHours(h)}
               </button>
             ))}
           </div>
-          <label className="mt-2 flex flex-wrap items-center justify-center gap-3 text-2xl text-slate-300">
+          <label className="flex flex-wrap items-center gap-3 text-[clamp(16px,2.4vh,20px)] font-medium">
             ¿A qué hora empieza?
             <input
               type="time"
               value={phase.startTime}
               onChange={(e) => onChange({ startTime: e.target.value })}
-              className="rounded-xl border border-white/20 bg-slate-800 px-4 py-2 font-mono text-3xl text-white"
+              className={`border-2 border-[#201e1d] bg-white px-3 py-1.5 text-2xl font-bold tabular-nums ${FOCUS}`}
             />
           </label>
           {phase.hours && validTime && (
-            <p className="text-lg text-sky-300">
+            <p className="text-lg font-bold text-[#1747a6]">
               Permiso de {formatPermissionHours(phase.hours)}: de {phase.startTime} a {permissionEnd(phase.startTime, phase.hours)}
             </p>
           )}
@@ -919,7 +1102,7 @@ function PermissionPanel({
             type="button"
             disabled={!phase.hours || !validTime || phase.sending}
             onClick={() => onSubmit("horas")}
-            className="w-full rounded-2xl bg-brand-600 px-6 py-5 text-3xl font-bold shadow-lg hover:bg-brand-500 disabled:cursor-not-allowed disabled:opacity-40"
+            className={`mr-2 mb-2 bg-[#e8590c] px-6 py-[clamp(10px,2vh,18px)] text-[clamp(20px,3vh,28px)] font-extrabold text-white hover:bg-[#d24f08] active:bg-[#a83d05] ${PRESS} ${FOCUS}`}
           >
             {phase.sending ? "Registrando…" : "Registrar permiso"}
           </button>
@@ -928,7 +1111,7 @@ function PermissionPanel({
       <button
         type="button"
         onClick={() => (phase.step === "hours" ? onChange({ step: "kind" }) : onCancel())}
-        className="text-lg text-slate-400 underline-offset-4 hover:text-white hover:underline"
+        className={`self-start text-[15px] font-semibold text-[#55504d] underline underline-offset-[3px] hover:text-[#e8590c] ${FOCUS}`}
       >
         {phase.step === "hours" ? "← Atrás" : "Cancelar"}
       </button>
@@ -943,7 +1126,7 @@ const timeOnly = new Intl.DateTimeFormat("es-EC", {
   hourCycle: "h23",
 });
 
-/** Botón grande de una opción: elegible, ya marcada (✓ hora) o ya no disponible. */
+/** Botón de una opción: elegible (sugerida en naranja), ya marcada (✓ hora) o ya no disponible. */
 function OptionButton({
   option,
   suggested,
@@ -953,57 +1136,51 @@ function OptionButton({
   suggested: boolean;
   onChoose: () => void;
 }) {
+  const text = "text-[clamp(18px,3.2vh,30px)] leading-[1.05] font-extrabold";
+  const pad = "px-[18px] py-[clamp(8px,2vh,22px)]";
   if (option.status === "done") {
     return (
-      <div className="flex items-center justify-between rounded-2xl border border-emerald-500/40 bg-emerald-500/10 px-6 py-5 text-left">
-        <span className="text-2xl font-semibold text-emerald-200">{option.label}</span>
-        <span className="text-lg text-emerald-300">✓ {option.at ? timeOnly.format(new Date(option.at)) : ""}</span>
+      <div className={`flex flex-col items-start gap-1.5 border-2 border-[#201e1d] bg-[#e9e7e6] text-left ${pad}`}>
+        <span className={`${text} text-[#55504d]`}>{option.label}</span>
+        <span className="flex items-center gap-1 text-sm font-bold text-[#1f9d55]">
+          <IconCheckLine className="h-4 w-4" /> {option.at ? timeOnly.format(new Date(option.at)) : ""}
+        </span>
       </div>
     );
   }
   if (option.status === "unavailable") {
     return (
-      <div className="rounded-2xl border border-white/10 bg-white/5 px-6 py-5 text-left text-2xl font-semibold text-slate-500">
-        {option.label}
-        <span className="mt-1 block text-sm font-normal">Ya no disponible hoy</span>
+      <div className={`flex flex-col items-start gap-1.5 border-2 border-dashed border-[#9b9592] text-left text-[#9b9592] ${pad}`}>
+        <span className={text}>{option.label}</span>
+        <span className="text-sm font-medium">Ya no disponible hoy</span>
       </div>
     );
   }
-  const tone = suggested
-    ? "bg-brand-600 shadow-brand-900/40 ring-4 ring-brand-300/60 hover:bg-brand-500"
-    : "bg-slate-700 hover:bg-slate-600";
+  if (suggested) {
+    return (
+      <button
+        type="button"
+        onClick={onChoose}
+        autoFocus
+        className={`flex flex-col items-start gap-1.5 bg-[#e8590c] text-left text-white outline-none hover:bg-[#d24f08] active:bg-[#a83d05] ${pad} ${PRESS}`}
+      >
+        <span className={text}>{option.label}</span>
+        <span className="bg-white px-2 py-0.5 text-xs font-extrabold tracking-[0.08em] text-[#201e1d] uppercase">Sugerido</span>
+      </button>
+    );
+  }
   return (
     <button
       type="button"
       onClick={onChoose}
-      autoFocus={suggested}
-      className={`rounded-2xl px-6 py-6 text-left text-3xl font-bold shadow-lg transition focus-visible:outline-4 focus-visible:outline-brand-300 active:scale-[0.99] ${tone}`}
+      className={`bg-white text-left text-[#201e1d] hover:bg-[#fde7da] active:bg-[#f9cdb3] ${text} ${pad} ${PRESS} ${FOCUS}`}
     >
       {option.label}
-      {suggested && <span className="mt-1 block text-sm font-medium text-brand-100">Sugerido</span>}
     </button>
   );
 }
 
-function StepDots({ total, current }: { total: number; current: number }) {
-  return (
-    <div className="mt-4 flex justify-center gap-2">
-      {Array.from({ length: total }, (_, i) => (
-        <span
-          key={i}
-          className={`h-2.5 w-16 rounded-full ${i < current ? "bg-emerald-400" : i === current ? "bg-sky-400" : "bg-white/20"}`}
-        />
-      ))}
-    </div>
-  );
-}
-
+/** Indicador de carga cuadrado (sin esquinas redondeadas). */
 function Spinner() {
-  return <span className="inline-block h-6 w-6 animate-spin rounded-full border-4 border-white/30 border-t-white" />;
-}
-
-function StepIcon({ step }: { step: LivenessStep | undefined }) {
-  if (step === "turn_left") return <span aria-hidden>⬅️</span>;
-  if (step === "turn_right") return <span aria-hidden>➡️</span>;
-  return <span aria-hidden>👁️</span>;
+  return <span className="inline-block h-9 w-9 animate-spin border-4 border-white/30 border-t-white" aria-hidden />;
 }
