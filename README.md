@@ -131,6 +131,7 @@ Las migraciones están versionadas en `supabase/migrations/` y **ya están aplic
 | `…0011_tolerancia_almuerzo_y_salida_asumida.sql` | Configuración: `lunch_tolerance_minutes` (10) y `default_exit_time` (17:00) |
 | `…0012_dias_sin_almuerzo.sql` | `employees.no_lunch_days`: días sin almuerzo (media jornada), por defecto sábado |
 | `…0013_sin_almuerzo_si_entra_tarde.sql` | Configuración: `no_lunch_after_time` (12:30): si entra desde esa hora ya viene almorzado |
+| `…0014_cierre_del_dia.sql` | Configuración: `day_close_time` (18:30): desde esa hora el día de hoy se calcula como terminado |
 
 Tablas: `branches`, `branch_ips`, `employees`, `face_templates`, `attendance_events`, `failed_attempts`, `alerts`, `settings` y `admin_users`, más tres de soporte: `kiosk_challenges` (retos de un solo uso), `rate_limits` y `audit_log`.
 
@@ -250,7 +251,8 @@ Todas se editan en **Dashboard → Configuración** (tabla `settings`):
 | Días sin almuerzo | sábado (por empleado) | En la ficha: “¿Qué días NO sale al almuerzo?”. Esos días con Entrar + Salir el día queda **Completo** y Horas = salida − entrada. No se asume salida a las 17:00 esos días |
 | Entró ya almorzado | desde 12:30 | Si entra a las 12:30 o después (sin marcar almuerzo), ese día no se pide ni descuenta almuerzo: Entrar 13:09 + Salir 17:29 = **4 h 20**, Completo (el atraso de entrada se mantiene). Se cambia en Configuración |
 | Tolerancia de almuerzo | 10 min | El exceso empieza después de *permitido + tolerancia*: volver a 1 h 10 no cuenta; a 1 h 12 son **2 min** de exceso (rojo) |
-| No marcó bien | automático | En un día ya terminado con “Entrar”: sin “Salir” → se cuenta hasta las **17:00**; sin almuerzo marcado (o a medias) → se descuenta **1 h** de almuerzo. Si salió al almuerzo y no volvió a marcar → solo se cuentan sus horas **hasta el almuerzo**. El día sigue en amarillo “Incompleto” y los valores asumidos salen en gris con *. Si marca más tarde, se cuenta la hora real. En media jornada (sábado) no se asume la salida |
+| Cierre del día | 18:30 | Desde esa hora, HOY se calcula como día terminado: deja de salir “En curso” y se aplican las reglas de “No marcó bien”. Se cambia en Configuración |
+| No marcó bien | automático | En un día ya terminado (o hoy después del cierre) con “Entrar”: sin “Salir” → se cuenta hasta las **17:00**; sin almuerzo marcado (o a medias) → se descuenta **1 h** de almuerzo. Si salió al almuerzo y no volvió a marcar → solo se cuentan sus horas **hasta el almuerzo**. El día sigue en amarillo “Incompleto” y los valores asumidos salen en gris con *. Si marca más tarde, se cuenta la hora real. En media jornada (sábado) no se asume la salida |
 | Horas trabajadas | reales | (salida − entrada) − almuerzo tomado: es lo que se paga. **Minutos perdidos** = atraso + exceso de almuerzo; ya están fuera de las horas reales (informativo, no se restan otra vez) |
 | Resumen por empleado | dashboard + Excel | Botón “Resumen por empleado”: días trabajados, faltas, permisos, días que no marcó bien, días sin horas, **horas marcadas**, **horas asumidas** (de días mal marcados), **total de horas**, minutos perdidos y fila TOTAL. Para no pagar los días mal marcados, se pagan solo las horas marcadas. El Excel trae la hoja “Resumen por empleado” y una fila TOTAL en la hoja diaria |
 | Vista del dashboard | hoy | Al entrar se ve solo el día de hoy; para más días: filtros o “Ver rápido” (Ayer, Últimos 7 / 30 días, Este mes, Mes pasado) |

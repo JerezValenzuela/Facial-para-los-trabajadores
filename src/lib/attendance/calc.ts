@@ -21,6 +21,9 @@
  * "horas asumidas", para poder decidir si se pagan. Si marca, vale la hora real.
  * En media jornada (sin almuerzo) no se asume la salida: se pagaría de más.
  *
+ * Cierre del día (18:30, Configuración): desde esa hora el día de HOY se calcula
+ * como terminado (deja de estar "En curso" y se aplican las reglas de arriba).
+ *
  * Entró después del almuerzo (desde las 12:30, Configuración): ya viene almorzado,
  * así que ese día no se pide ni se descuenta almuerzo (Entrar + Salir = completo).
  *
@@ -52,6 +55,8 @@ export type DayRules = {
   lunchExpected?: boolean;
   /** Si entra desde esta hora ("12:30"), ya viene almorzado: no se pide ni descuenta almuerzo. */
   lunchCutoffTime?: string | null;
+  /** Desde esta hora ("18:30") el día de hoy se calcula como terminado. */
+  dayCloseTime?: string | null;
 };
 
 export type DayStatus = "completo" | "incompleto" | "sin_marcaciones" | "en_curso" | "permiso" | "libre";
@@ -127,6 +132,9 @@ export function summarizeDay(
   const regresoAlmuerzo = events.REGRESO_ALMUERZO ?? null;
   const salidaFinal = events.SALIDA_FINAL ?? null;
   const isToday = date === opts.today;
+  // Día terminado: ya pasó, o es hoy y ya es la hora de cierre (18:30).
+  const dayOver =
+    date < opts.today || (isToday && Boolean(rules.dayCloseTime) && opts.now >= zonedToUtc(date, rules.dayCloseTime!));
 
   const lateMinutes = entrada ? computeLateMinutes(entrada, date, rules, permission) : 0;
 
@@ -137,7 +145,7 @@ export function summarizeDay(
     const l = computeLunch(salidaAlmuerzo, regresoAlmuerzo, rules.lunchAllowedMinutes, rules.lunchToleranceMinutes);
     lunchMinutes = l.minutes;
     lunchExcessMinutes = l.excess;
-  } else if (salidaAlmuerzo && !regresoAlmuerzo && isToday && !salidaFinal) {
+  } else if (salidaAlmuerzo && !regresoAlmuerzo && isToday && !dayOver && !salidaFinal) {
     // Almuerzo en curso: se muestra cuánto lleva fuera (y el exceso en vivo).
     lunchOngoing = true;
     const l = computeLunch(salidaAlmuerzo, opts.now, rules.lunchAllowedMinutes, rules.lunchToleranceMinutes);
@@ -153,7 +161,6 @@ export function summarizeDay(
   // Sin almuerzo ese día (media jornada o entró ya almorzado): basta Entrar + Salir.
   const noLunchDay = (!lunchExpected || arrivedAfterLunch) && !salidaAlmuerzo && !regresoAlmuerzo;
 
-  const dayOver = date < opts.today;
   let workedMinutes: number | null = null;
   let assumedExit: Date | null = null;
   let assumedLunch = false;
@@ -202,7 +209,7 @@ export function summarizeDay(
   if (permission?.kind === "dia_completo" && count === 0) status = "permiso";
   else if (count === 0) status = "sin_marcaciones";
   else if (missing.length === 0) status = "completo";
-  else status = isToday ? "en_curso" : "incompleto";
+  else status = dayOver ? "incompleto" : "en_curso";
 
   return {
     date,
@@ -299,6 +306,7 @@ export function buildDailyReport(input: {
   lunchToleranceMinutes?: number;
   assumedExitTime?: string | null;
   lunchCutoffTime?: string | null;
+  dayCloseTime?: string | null;
   permissions?: ReportPermission[];
   observations?: ReportObservation[];
 }): ReportRow[] {
@@ -356,6 +364,7 @@ export function buildDailyReport(input: {
           lunchToleranceMinutes: input.lunchToleranceMinutes,
           assumedExitTime: input.assumedExitTime,
           lunchCutoffTime: input.lunchCutoffTime,
+          dayCloseTime: input.dayCloseTime,
           lunchExpected: hasLunch(schedule, date),
         },
         { today: input.today, now: input.now },

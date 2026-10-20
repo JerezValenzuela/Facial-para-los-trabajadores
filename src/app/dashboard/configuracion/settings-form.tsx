@@ -13,6 +13,7 @@ export type SettingsValues = {
   lunch_tolerance_minutes: number;
   default_exit_time: string;
   no_lunch_after_time: string;
+  day_close_time: string;
   lunch_alert_grace_minutes: number;
   face_match_threshold: number;
   cooldown_seconds: number;
@@ -120,6 +121,21 @@ export function SettingsForm({ values }: { values: SettingsValues }) {
             Ese día no se le pide ni se le descuenta almuerzo: con Entrar y Salir el día queda completo.
           </p>
           <FieldError message={fe?.no_lunch_after_time} />
+        </div>
+        <div>
+          <label className="label" htmlFor="day_close_time">Cierre del día</label>
+          <input
+            id="day_close_time"
+            name="day_close_time"
+            type="time"
+            required
+            defaultValue={values.day_close_time.slice(0, 5)}
+            className="input max-w-40"
+          />
+          <p className="mt-1 text-xs text-slate-500">
+            Desde esta hora se calculan las horas de hoy como día terminado (los que no marcaron salen “Incompleto”).
+          </p>
+          <FieldError message={fe?.day_close_time} />
         </div>
         <NumberField name="cooldown_seconds" label="Espera entre marcaciones (s)" value={values.cooldown_seconds} min={10} max={3600}
           help="Evita marcaciones dobles del mismo empleado." error={fe?.cooldown_seconds} />

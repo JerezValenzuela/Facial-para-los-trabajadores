@@ -608,6 +608,7 @@ export type Database = {
           alert_lunch_overdue: boolean
           alert_suspicious: boolean
           cooldown_seconds: number
+          day_close_time: string
           default_exit_time: string
           entry_tolerance_minutes: number
           evidence_enabled: boolean
@@ -630,6 +631,7 @@ export type Database = {
           alert_lunch_overdue?: boolean
           alert_suspicious?: boolean
           cooldown_seconds?: number
+          day_close_time?: string
           default_exit_time?: string
           entry_tolerance_minutes?: number
           evidence_enabled?: boolean
@@ -652,6 +654,7 @@ export type Database = {
           alert_lunch_overdue?: boolean
           alert_suspicious?: boolean
           cooldown_seconds?: number
+          day_close_time?: string
           default_exit_time?: string
           entry_tolerance_minutes?: number
           evidence_enabled?: boolean

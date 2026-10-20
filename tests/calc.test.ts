@@ -140,6 +140,51 @@ describe("tolerancia de almuerzo (60 + 10)", () => {
   });
 });
 
+describe("cierre del día (18:30): hoy se calcula como terminado", () => {
+  const T = "2026-10-19";
+  const r = { ...rules, entryTime: "07:00", toleranceMinutes: 10, assumedExitTime: "17:00", lunchCutoffTime: "12:30", dayCloseTime: "18:30" };
+  const before = { today: T, now: ec(T, "18:29:00") };
+  const after = { today: T, now: ec(T, "19:03:00") };
+
+  it("antes de las 18:30: sigue “En curso”, sin horas", () => {
+    const s = summarizeDay(T, { ENTRADA: ec(T, "06:55:00") }, r, before);
+    expect(s.status).toBe("en_curso");
+    expect(s.workedMinutes).toBeNull();
+  });
+
+  it("desde las 18:30: Luis (solo Entrar 06:55) → 9 h 05 asumidas, Incompleto", () => {
+    const s = summarizeDay(T, { ENTRADA: ec(T, "06:55:00") }, r, after);
+    expect(s.status).toBe("incompleto");
+    expect(s.workedMinutes).toBe(545);
+    expect(s.assumedExit).not.toBeNull();
+    expect(s.assumedLunch).toBe(true);
+  });
+
+  it("desde las 18:30: Karen (solo Entrar 13:42) → hasta las 17:00 sin almuerzo = 3 h 18", () => {
+    const s = summarizeDay(T, { ENTRADA: ec(T, "13:42:00") }, r, after);
+    expect(s.workedMinutes).toBe(198);
+    expect(s.arrivedAfterLunch).toBe(true);
+  });
+
+  it("desde las 18:30: si salió al almuerzo y no volvió, ya no está “en almuerzo”: horas hasta el almuerzo", () => {
+    const s = summarizeDay(T, { ENTRADA: ec(T, "07:00:00"), SALIDA_ALMUERZO: ec(T, "12:30:00") }, r, after);
+    expect(s.lunchOngoing).toBe(false);
+    expect(s.leftAtLunch).toBe(true);
+    expect(s.workedMinutes).toBe(330);
+  });
+
+  it("si marcó todo, se ve igual antes y después del cierre", () => {
+    const all = {
+      ENTRADA: ec(T, "07:31:00"),
+      SALIDA_ALMUERZO: ec(T, "12:26:00"),
+      REGRESO_ALMUERZO: ec(T, "13:23:00"),
+      SALIDA_FINAL: ec(T, "17:07:00"),
+    };
+    expect(summarizeDay(T, all, r, after).workedMinutes).toBe(summarizeDay(T, all, r, before).workedMinutes);
+    expect(summarizeDay(T, all, r, after).status).toBe("completo");
+  });
+});
+
 describe("entró después del almuerzo (desde las 12:30): ya viene almorzado", () => {
   const r = { ...rules, entryTime: "07:00", toleranceMinutes: 10, lunchCutoffTime: "12:30", assumedExitTime: "17:00" };
   const D = "2026-10-16";
