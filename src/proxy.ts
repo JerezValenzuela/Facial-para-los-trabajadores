@@ -40,6 +40,7 @@ export async function proxy(request: NextRequest) {
   const pendingCookies: { name: string; value: string; options: CookieOptions }[] = [];
   const pendingHeaders: Record<string, string> = {};
   let isAuthenticated = false;
+  let staleSession = false;
 
   if (needsSession) {
     const supabase = createServerClient(
@@ -63,10 +64,29 @@ export async function proxy(request: NextRequest) {
     // getClaims valida la firma del JWT (no confía ciegamente en la cookie).
     const { data } = await supabase.auth.getClaims();
     isAuthenticated = Boolean(data?.claims?.sub);
+
+    if (isAuthenticated && path === "/login") {
+      // En /login se confirma con el servidor de Auth. Si la sesión ya no existe
+      // (cerrada, revocada o vencida) aunque el JWT siga firmado, se borran las
+      // cookies: si no, /login mandaría al dashboard, el dashboard (que sí usa
+      // getUser) devolvería a /login… y el navegador quedaría en un bucle.
+      const { data: current, error } = await supabase.auth.getUser();
+      if (error || !current.user) {
+        isAuthenticated = false;
+        staleSession = true;
+        await supabase.auth.signOut({ scope: "local" });
+      }
+    }
   }
 
   let response: NextResponse;
-  if (path.startsWith("/dashboard") && !isAuthenticated) {
+  if (staleSession && !request.nextUrl.searchParams.has("sesion")) {
+    // Una sola redirección (con las cookies ya borradas) para avisar en el login.
+    const url = request.nextUrl.clone();
+    url.search = "";
+    url.searchParams.set("sesion", "cerrada");
+    response = NextResponse.redirect(url);
+  } else if (path.startsWith("/dashboard") && !isAuthenticated) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
     url.search = "";

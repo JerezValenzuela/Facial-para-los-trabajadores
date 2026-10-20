@@ -7,6 +7,7 @@ export const metadata: Metadata = { title: "Ingreso administrador" };
 export default async function LoginPage(props: PageProps<"/login">) {
   const sp = await props.searchParams;
   const next = typeof sp.next === "string" ? sp.next : undefined;
+  const sessionClosed = sp.sesion === "cerrada";
 
   return (
     <main className="flex flex-1 items-center justify-center bg-gradient-to-b from-slate-50 to-slate-100 p-6">
@@ -18,6 +19,11 @@ export default async function LoginPage(props: PageProps<"/login">) {
           <h1 className="text-xl font-semibold text-slate-900">JerezCons Asistencia</h1>
           <p className="mt-1 text-sm text-slate-500">Panel de administración</p>
         </div>
+        {sessionClosed && (
+          <p role="status" className="mb-4 rounded-lg bg-amber-50 px-3 py-2 text-center text-sm text-amber-800">
+            Tu sesión anterior se cerró o venció. Vuelve a ingresar.
+          </p>
+        )}
         <div className="card p-6">
           <LoginForm next={next} />
         </div>
