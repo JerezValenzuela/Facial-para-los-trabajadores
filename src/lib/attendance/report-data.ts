@@ -16,6 +16,7 @@ export type ReportData = {
     lunch_allowed_minutes: number;
     lunch_tolerance_minutes: number;
     default_exit_time: string;
+    no_lunch_after_time: string;
   };
   totals: { rows: number; late: number; lunchExcess: number; incomplete: number; permissions: number };
 };
@@ -39,7 +40,7 @@ export async function loadReport(
   const [{ data: settingsRow }, { data: branches }, { data: employees }, { data: allEmployees }] = await Promise.all([
     supabase
       .from("settings")
-      .select("entry_tolerance_minutes, lunch_allowed_minutes, lunch_tolerance_minutes, default_exit_time")
+      .select("entry_tolerance_minutes, lunch_allowed_minutes, lunch_tolerance_minutes, default_exit_time, no_lunch_after_time")
       .eq("id", 1)
       .maybeSingle(),
     supabase.from("branches").select("id, name").order("name"),
@@ -52,6 +53,7 @@ export async function loadReport(
     lunch_allowed_minutes: DEFAULT_SETTINGS.lunch_allowed_minutes,
     lunch_tolerance_minutes: DEFAULT_SETTINGS.lunch_tolerance_minutes,
     default_exit_time: DEFAULT_SETTINGS.default_exit_time,
+    no_lunch_after_time: DEFAULT_SETTINGS.no_lunch_after_time,
   };
 
   const ids = (employees ?? []).map((e) => e.id);
@@ -107,6 +109,7 @@ export async function loadReport(
     lunchAllowedMinutes: settings.lunch_allowed_minutes,
     lunchToleranceMinutes: settings.lunch_tolerance_minutes,
     assumedExitTime: settings.default_exit_time,
+    lunchCutoffTime: settings.no_lunch_after_time,
   });
   if (filters.onlyIssues) {
     rows = rows.filter(

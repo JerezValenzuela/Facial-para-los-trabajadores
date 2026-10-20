@@ -162,6 +162,7 @@ export const settingsSchema = z.object({
   lunch_allowed_minutes: z.coerce.number().int().min(10).max(240),
   lunch_tolerance_minutes: z.coerce.number().int().min(0).max(60),
   default_exit_time: timeHHMM,
+  no_lunch_after_time: timeHHMM,
   lunch_alert_grace_minutes: z.coerce.number().int().min(0).max(120),
   face_match_threshold: z.coerce.number().min(0.3).max(0.65),
   cooldown_seconds: z.coerce.number().int().min(10).max(3600),

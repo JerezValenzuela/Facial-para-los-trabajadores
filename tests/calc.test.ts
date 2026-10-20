@@ -140,6 +140,54 @@ describe("tolerancia de almuerzo (60 + 10)", () => {
   });
 });
 
+describe("entró después del almuerzo (desde las 12:30): ya viene almorzado", () => {
+  const r = { ...rules, entryTime: "07:00", toleranceMinutes: 10, lunchCutoffTime: "12:30", assumedExitTime: "17:00" };
+  const D = "2026-10-16";
+  const after = { today: "2026-10-19", now: ec("2026-10-19", "09:00:00") };
+
+  it("Karen: entra 13:09 y sale 17:29 → 4 h 20 completas, sin descontar almuerzo", () => {
+    const s = summarizeDay(D, { ENTRADA: ec(D, "13:09:00"), SALIDA_FINAL: ec(D, "17:29:00") }, r, after);
+    expect(s.workedMinutes).toBe(260);
+    expect(s.arrivedAfterLunch).toBe(true);
+    expect(s.assumedLunch).toBe(false);
+    expect(s.status).toBe("completo");
+    expect(s.missing).toEqual([]);
+    expect(s.lateMinutes).toBe(359); // el atraso de entrada se mantiene
+  });
+
+  it("justo a las 12:30 también cuenta como que ya viene almorzado", () => {
+    const s = summarizeDay(D, { ENTRADA: ec(D, "12:30:00"), SALIDA_FINAL: ec(D, "17:00:00") }, r, after);
+    expect(s.workedMinutes).toBe(270);
+    expect(s.arrivedAfterLunch).toBe(true);
+  });
+
+  it("si entra a las 12:29 sí se le descuenta la hora de almuerzo (no la marcó)", () => {
+    const s = summarizeDay(D, { ENTRADA: ec(D, "12:29:00"), SALIDA_FINAL: ec(D, "17:00:00") }, r, after);
+    expect(s.workedMinutes).toBe(271 - 60);
+    expect(s.assumedLunch).toBe(true);
+    expect(s.arrivedAfterLunch).toBe(false);
+  });
+
+  it("si entra tarde y olvida Salir: hasta las 17:00 sin descontar almuerzo (horas asumidas)", () => {
+    const s = summarizeDay(D, { ENTRADA: ec(D, "13:42:00") }, r, after);
+    expect(s.workedMinutes).toBe(198); // 13:42 → 17:00 = 3 h 18
+    expect(s.assumedExit).not.toBeNull();
+    expect(s.assumedLunch).toBe(false);
+    expect(s.status).toBe("incompleto");
+  });
+
+  it("si igual marca almuerzo, se descuenta lo que tomó", () => {
+    const s = summarizeDay(
+      D,
+      { ENTRADA: ec(D, "13:00:00"), SALIDA_ALMUERZO: ec(D, "14:00:00"), REGRESO_ALMUERZO: ec(D, "14:20:00"), SALIDA_FINAL: ec(D, "18:00:00") },
+      r,
+      after,
+    );
+    expect(s.workedMinutes).toBe(300 - 20);
+    expect(s.arrivedAfterLunch).toBe(false);
+  });
+});
+
 describe("sábado sin almuerzo (media jornada)", () => {
   const SAT = "2026-10-17";
   const half = { ...rules, entryTime: "07:00", lunchExpected: false, assumedExitTime: "17:00" };

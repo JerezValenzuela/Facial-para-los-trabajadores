@@ -21,6 +21,9 @@
  * "horas asumidas", para poder decidir si se pagan. Si marca, vale la hora real.
  * En media jornada (sin almuerzo) no se asume la salida: se pagaría de más.
  *
+ * Entró después del almuerzo (desde las 12:30, Configuración): ya viene almorzado,
+ * así que ese día no se pide ni se descuenta almuerzo (Entrar + Salir = completo).
+ *
  * Permisos (registrados por el empleado en el kiosco):
  *  - Todo el día: el día cuenta como "Permiso" (sin atraso ni "Incompleto").
  *  - Por horas: si el permiso empieza antes de la hora de entrada (+ tolerancia),
@@ -47,6 +50,8 @@ export type DayRules = {
   assumedExitTime?: string | null;
   /** false = día sin almuerzo (media jornada): basta Entrar + Salir. Por defecto true. */
   lunchExpected?: boolean;
+  /** Si entra desde esta hora ("12:30"), ya viene almorzado: no se pide ni descuenta almuerzo. */
+  lunchCutoffTime?: string | null;
 };
 
 export type DayStatus = "completo" | "incompleto" | "sin_marcaciones" | "en_curso" | "permiso" | "libre";
@@ -69,6 +74,8 @@ export type DaySummary = {
   assumedLunch: boolean;
   /** Salió al almuerzo y no volvió a marcar: horas solo hasta la salida al almuerzo. */
   leftAtLunch: boolean;
+  /** Entró desde la hora de corte (12:30): ya venía almorzado, no se descuenta almuerzo. */
+  arrivedAfterLunch: boolean;
   /** false = día sin almuerzo (media jornada). */
   lunchExpected: boolean;
   status: DayStatus;
@@ -139,8 +146,12 @@ export function summarizeDay(
   }
 
   const lunchExpected = rules.lunchExpected !== false;
-  // Día sin almuerzo y sin marcaciones de almuerzo: basta Entrar + Salir.
-  const noLunchDay = !lunchExpected && !salidaAlmuerzo && !regresoAlmuerzo;
+  // Entró desde la hora de corte (ej. 12:30) sin marcar almuerzo: ya venía almorzado.
+  const arrivedAfterLunch = Boolean(
+    entrada && rules.lunchCutoffTime && !salidaAlmuerzo && !regresoAlmuerzo && entrada >= zonedToUtc(date, rules.lunchCutoffTime),
+  );
+  // Sin almuerzo ese día (media jornada o entró ya almorzado): basta Entrar + Salir.
+  const noLunchDay = (!lunchExpected || arrivedAfterLunch) && !salidaAlmuerzo && !regresoAlmuerzo;
 
   const dayOver = date < opts.today;
   let workedMinutes: number | null = null;
@@ -207,6 +218,7 @@ export function summarizeDay(
     assumedExit,
     assumedLunch,
     leftAtLunch,
+    arrivedAfterLunch,
     lunchExpected,
     status,
     missing,
@@ -286,6 +298,7 @@ export function buildDailyReport(input: {
   lunchAllowedMinutes: number;
   lunchToleranceMinutes?: number;
   assumedExitTime?: string | null;
+  lunchCutoffTime?: string | null;
   permissions?: ReportPermission[];
   observations?: ReportObservation[];
 }): ReportRow[] {
@@ -342,6 +355,7 @@ export function buildDailyReport(input: {
           lunchAllowedMinutes: input.lunchAllowedMinutes,
           lunchToleranceMinutes: input.lunchToleranceMinutes,
           assumedExitTime: input.assumedExitTime,
+          lunchCutoffTime: input.lunchCutoffTime,
           lunchExpected: hasLunch(schedule, date),
         },
         { today: input.today, now: input.now },

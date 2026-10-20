@@ -10,6 +10,7 @@ export const DEFAULT_SETTINGS: Settings = {
   lunch_allowed_minutes: 60,
   lunch_tolerance_minutes: 10,
   default_exit_time: "17:00:00",
+  no_lunch_after_time: "12:30:00",
   lunch_alert_grace_minutes: 5,
   face_match_threshold: 0.5,
   cooldown_seconds: 60,

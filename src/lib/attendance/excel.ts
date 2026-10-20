@@ -135,8 +135,10 @@ export async function buildAttendanceWorkbook(
         ? null
         : r.assumedLunch
           ? minutesToDuration(report.settings.lunch_allowed_minutes)
-          : r.lunchMinutes === null && !r.lunchExpected && r.entrada
-            ? "Sin almuerzo"
+          : r.arrivedAfterLunch
+            ? "Entró ya almorzado"
+            : r.lunchMinutes === null && !r.lunchExpected && r.entrada
+              ? "Sin almuerzo"
             : minutesToDuration(r.lunchMinutes),
       excess: r.lunchOngoing ? null : r.lunchExcessMinutes,
       late: r.lateMinutes,

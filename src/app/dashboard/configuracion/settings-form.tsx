@@ -12,6 +12,7 @@ export type SettingsValues = {
   lunch_allowed_minutes: number;
   lunch_tolerance_minutes: number;
   default_exit_time: string;
+  no_lunch_after_time: string;
   lunch_alert_grace_minutes: number;
   face_match_threshold: number;
   cooldown_seconds: number;
@@ -104,6 +105,21 @@ export function SettingsForm({ values }: { values: SettingsValues }) {
             Si alguien no marca “Salir”, sus horas se calculan hasta esta hora. Si marca más tarde, se cuenta la hora real.
           </p>
           <FieldError message={fe?.default_exit_time} />
+        </div>
+        <div>
+          <label className="label" htmlFor="no_lunch_after_time">Si entra desde esta hora, ya viene almorzado</label>
+          <input
+            id="no_lunch_after_time"
+            name="no_lunch_after_time"
+            type="time"
+            required
+            defaultValue={values.no_lunch_after_time.slice(0, 5)}
+            className="input max-w-40"
+          />
+          <p className="mt-1 text-xs text-slate-500">
+            Ese día no se le pide ni se le descuenta almuerzo: con Entrar y Salir el día queda completo.
+          </p>
+          <FieldError message={fe?.no_lunch_after_time} />
         </div>
         <NumberField name="cooldown_seconds" label="Espera entre marcaciones (s)" value={values.cooldown_seconds} min={10} max={3600}
           help="Evita marcaciones dobles del mismo empleado." error={fe?.cooldown_seconds} />

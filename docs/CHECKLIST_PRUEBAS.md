@@ -74,6 +74,7 @@ Las pruebas automáticas se corren con `npm test` (66 pruebas: estados, cálculo
 - [ ] Lista completa: fila **TOTAL** al final (exceso, atraso y horas trabajadas); el Excel también trae la fila TOTAL.
 - [ ] Almuerzo de 1 h 10 → sin rojo; 1 h 12 → “+2 min”. En el kiosco: “(tenías 1 hora + 10 min de tolerancia): 2 min de exceso”.
 - [ ] Día anterior sin “Salir” → Salida final “17:00*” en gris y horas hasta las 17:00 (con “1 h 00 min*” de almuerzo si tampoco lo marcó). Ej.: solo Entrar 06:55 → 9 h 05*. Si salió 17:20 marcando, cuenta 17:20.
+- [ ] Entra 13:09 y sale 17:29 (sin almuerzo) → “Entró ya almorzado”, **4 h 20**, Completo, con su atraso de entrada. Si entra 12:29 sin marcar almuerzo, sí se descuenta 1 h.
 - [ ] Entrar + Salir a almuerzo y nada más → horas solo hasta el almuerzo (“hasta el almuerzo”), sin asumir 17:00.
 - [ ] Resumen: “Horas marcadas” + “Horas asumidas” = “Total horas”; “No marcó bien” cuenta los días amarillos con entrada.
 - [ ] Al entrar se ve **solo hoy** (“Hoy, lun …”). “Ver rápido: Ayer / Últimos 7 días / Últimos 30 días” cambian el rango y conservan sucursal y empleado.

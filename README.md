@@ -130,6 +130,7 @@ Las migraciones están versionadas en `supabase/migrations/` y **ya están aplic
 | `…0010_observaciones.sql` | Tabla `observations`: una observación del administrador por empleado y día (solo admin, RLS) |
 | `…0011_tolerancia_almuerzo_y_salida_asumida.sql` | Configuración: `lunch_tolerance_minutes` (10) y `default_exit_time` (17:00) |
 | `…0012_dias_sin_almuerzo.sql` | `employees.no_lunch_days`: días sin almuerzo (media jornada), por defecto sábado |
+| `…0013_sin_almuerzo_si_entra_tarde.sql` | Configuración: `no_lunch_after_time` (12:30): si entra desde esa hora ya viene almorzado |
 
 Tablas: `branches`, `branch_ips`, `employees`, `face_templates`, `attendance_events`, `failed_attempts`, `alerts`, `settings` y `admin_users`, más tres de soporte: `kiosk_challenges` (retos de un solo uso), `rate_limits` y `audit_log`.
 
@@ -247,6 +248,7 @@ Todas se editan en **Dashboard → Configuración** (tabla `settings`):
 | Días por defecto | Configuración | Solo pre-marcan los días al crear un empleado nuevo |
 | Observaciones | 1 por empleado y día | Botón **+** junto a la fecha en Asistencia: escribir, editar o borrar lo que pasó ese día. Salen en la tabla, en el detalle del día, con “Solo novedades” y en la columna **Observaciones** del Excel |
 | Días sin almuerzo | sábado (por empleado) | En la ficha: “¿Qué días NO sale al almuerzo?”. Esos días con Entrar + Salir el día queda **Completo** y Horas = salida − entrada. No se asume salida a las 17:00 esos días |
+| Entró ya almorzado | desde 12:30 | Si entra a las 12:30 o después (sin marcar almuerzo), ese día no se pide ni descuenta almuerzo: Entrar 13:09 + Salir 17:29 = **4 h 20**, Completo (el atraso de entrada se mantiene). Se cambia en Configuración |
 | Tolerancia de almuerzo | 10 min | El exceso empieza después de *permitido + tolerancia*: volver a 1 h 10 no cuenta; a 1 h 12 son **2 min** de exceso (rojo) |
 | No marcó bien | automático | En un día ya terminado con “Entrar”: sin “Salir” → se cuenta hasta las **17:00**; sin almuerzo marcado (o a medias) → se descuenta **1 h** de almuerzo. Si salió al almuerzo y no volvió a marcar → solo se cuentan sus horas **hasta el almuerzo**. El día sigue en amarillo “Incompleto” y los valores asumidos salen en gris con *. Si marca más tarde, se cuenta la hora real. En media jornada (sábado) no se asume la salida |
 | Horas trabajadas | reales | (salida − entrada) − almuerzo tomado: es lo que se paga. **Minutos perdidos** = atraso + exceso de almuerzo; ya están fuera de las horas reales (informativo, no se restan otra vez) |

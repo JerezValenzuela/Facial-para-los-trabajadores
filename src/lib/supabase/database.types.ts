@@ -618,6 +618,7 @@ export type Database = {
           lunch_alert_grace_minutes: number
           lunch_allowed_minutes: number
           lunch_tolerance_minutes: number
+          no_lunch_after_time: string
           suspicious_attempts_threshold: number
           suspicious_window_minutes: number
           updated_at: string
@@ -639,6 +640,7 @@ export type Database = {
           lunch_alert_grace_minutes?: number
           lunch_allowed_minutes?: number
           lunch_tolerance_minutes?: number
+          no_lunch_after_time?: string
           suspicious_attempts_threshold?: number
           suspicious_window_minutes?: number
           updated_at?: string
@@ -660,6 +662,7 @@ export type Database = {
           lunch_alert_grace_minutes?: number
           lunch_allowed_minutes?: number
           lunch_tolerance_minutes?: number
+          no_lunch_after_time?: string
           suspicious_attempts_threshold?: number
           suspicious_window_minutes?: number
           updated_at?: string

@@ -185,6 +185,10 @@ function Row({
           <span className="text-slate-400 italic" title="No marcó el almuerzo: se descuenta el almuerzo permitido">
             {formatMinutes(lunchAllowedMinutes)}*
           </span>
+        ) : r.arrivedAfterLunch ? (
+          <span className="text-xs text-slate-400" title="Entró después del almuerzo: ya venía almorzado">
+            Entró ya almorzado
+          </span>
         ) : !r.lunchExpected && r.entrada ? (
           <span className="text-xs text-slate-400" title="Día sin almuerzo (media jornada)">Sin almuerzo</span>
         ) : (
