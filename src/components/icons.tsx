@@ -88,3 +88,33 @@ export const IconMenu = ({ className = "h-5 w-5" }: P) => (
     <path d="M3 6h18M3 12h18M3 18h18" />
   </svg>
 );
+
+// Variante de trazo recto (inicio): extremos cuadrados y grosor configurable.
+type Q = P & { strokeWidth?: number };
+const square = (strokeWidth: number) => ({ ...base, strokeWidth, strokeLinecap: "square" as const, strokeLinejoin: "miter" as const });
+
+export const IconScanFace = ({ className = "h-16 w-16", strokeWidth = 1.5 }: Q) => (
+  <svg {...square(strokeWidth)} className={className}>
+    <path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2" />
+    <path d="M8 14s1.5 2 4 2 4-2 4-2M9 9h.01M15 9h.01" />
+  </svg>
+);
+export const IconTap = ({ className = "h-[18px] w-[18px]", strokeWidth = 2.5 }: Q) => (
+  <svg {...square(strokeWidth)} className={className}>
+    <path d="M22 14a8 8 0 0 1-8 8M18 11v-1a2 2 0 0 0-2-2a2 2 0 0 0-2 2M14 10V9a2 2 0 0 0-2-2a2 2 0 0 0-2 2v1M10 9.5V4a2 2 0 0 0-2-2a2 2 0 0 0-2 2v10" />
+    <path d="M18 11a2 2 0 1 1 4 0v3a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15" />
+  </svg>
+);
+export const IconArrowRight = ({ className = "h-7 w-7", strokeWidth = 2 }: Q) => (
+  <svg {...square(strokeWidth)} className={className}>
+    <path d="M5 12h14M12 5l7 7-7 7" />
+  </svg>
+);
+export const IconLayout = ({ className = "h-7 w-7", strokeWidth = 2 }: Q) => (
+  <svg {...square(strokeWidth)} className={className}>
+    <rect x="3" y="3" width="7" height="9" />
+    <rect x="14" y="3" width="7" height="5" />
+    <rect x="14" y="12" width="7" height="9" />
+    <rect x="3" y="16" width="7" height="5" />
+  </svg>
+);
