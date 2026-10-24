@@ -24,6 +24,9 @@
  * Cierre del día (18:30, Configuración): desde esa hora el día de HOY se calcula
  * como terminado (deja de estar "En curso" y se aplican las reglas de arriba).
  *
+ * Salió antes del almuerzo (marcó Salir antes de las 12:30 sin salir a almorzar):
+ * día completo y sin descontar almuerzo.
+ *
  * Entró después del almuerzo (desde las 12:30, Configuración): ya viene almorzado,
  * así que ese día no se pide ni se descuenta almuerzo (Entrar + Salir = completo).
  *
@@ -158,8 +161,15 @@ export function summarizeDay(
   const arrivedAfterLunch = Boolean(
     entrada && rules.lunchCutoffTime && !salidaAlmuerzo && !regresoAlmuerzo && entrada >= zonedToUtc(date, rules.lunchCutoffTime),
   );
-  // Sin almuerzo ese día (media jornada o entró ya almorzado): basta Entrar + Salir.
-  const noLunchDay = (!lunchExpected || arrivedAfterLunch) && !salidaAlmuerzo && !regresoAlmuerzo;
+  // Marcó Salir antes de la hora de corte sin salir al almuerzo: se fue antes del
+  // almuerzo (en el kiosco, tras Entrar se puede elegir Salir "si no va a almorzar").
+  const leftBeforeLunch = Boolean(
+    entrada && salidaFinal && rules.lunchCutoffTime && !salidaAlmuerzo && !regresoAlmuerzo &&
+      salidaFinal < zonedToUtc(date, rules.lunchCutoffTime),
+  );
+  // Sin almuerzo ese día (media jornada, entró ya almorzado o se fue antes del
+  // almuerzo): basta Entrar + Salir y no se descuenta almuerzo.
+  const noLunchDay = (!lunchExpected || arrivedAfterLunch || leftBeforeLunch) && !salidaAlmuerzo && !regresoAlmuerzo;
 
   let workedMinutes: number | null = null;
   let assumedExit: Date | null = null;

@@ -152,3 +152,9 @@ export const IconAlertLine = ({ className = "h-8 w-8", strokeWidth = 2.5 }: Q) =
     <path d="M12 3 2 21h20L12 3zM12 10v5M12 18h.01" />
   </svg>
 );
+export const IconLock = ({ className = "h-4 w-4", strokeWidth = 2.5 }: Q) => (
+  <svg {...square(strokeWidth)} className={className}>
+    <rect x="4" y="11" width="16" height="10" />
+    <path d="M8 11V7a4 4 0 0 1 8 0v4" />
+  </svg>
+);

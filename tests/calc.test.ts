@@ -185,6 +185,40 @@ describe("cierre del día (18:30): hoy se calcula como terminado", () => {
   });
 });
 
+describe("se fue antes del almuerzo (Entrar → Salir antes de las 12:30)", () => {
+  const r = { ...rules, entryTime: "07:00", toleranceMinutes: 10, lunchCutoffTime: "12:30", assumedExitTime: "17:00" };
+  const D = "2026-10-21";
+  const after = { today: "2026-10-24", now: ec("2026-10-24", "09:00:00") };
+
+  it("entra 07:00 y sale 11:30 sin almorzar → 4 h 30 completas, sin descontar almuerzo", () => {
+    const s = summarizeDay(D, { ENTRADA: ec(D, "07:00:00"), SALIDA_FINAL: ec(D, "11:30:00") }, r, after);
+    expect(s.workedMinutes).toBe(270);
+    expect(s.assumedLunch).toBe(false);
+    expect(s.status).toBe("completo");
+    expect(s.missing).toEqual([]);
+  });
+
+  it("si sale a las 17:00 sin marcar el almuerzo, sigue la regla de antes: −1 h asumida e Incompleto", () => {
+    const s = summarizeDay(D, { ENTRADA: ec(D, "07:00:00"), SALIDA_FINAL: ec(D, "17:00:00") }, r, after);
+    expect(s.workedMinutes).toBe(600 - 60);
+    expect(s.assumedLunch).toBe(true);
+    expect(s.status).toBe("incompleto");
+  });
+
+  it("jornada completa con almuerzo (el orden obligatorio): suma real", () => {
+    const s = summarizeDay(
+      D,
+      { ENTRADA: ec(D, "07:00:00"), SALIDA_ALMUERZO: ec(D, "12:00:00"), REGRESO_ALMUERZO: ec(D, "15:00:00"), SALIDA_FINAL: ec(D, "17:00:00") },
+      { ...r, lunchToleranceMinutes: 10 },
+      after,
+    );
+    // Volvió 3 h después: 10 h − 3 h de almuerzo = 7 h; exceso = 180 − 60 − 10 = 110 min
+    expect(s.workedMinutes).toBe(420);
+    expect(s.lunchExcessMinutes).toBe(110);
+    expect(s.status).toBe("completo");
+  });
+});
+
 describe("entró después del almuerzo (desde las 12:30): ya viene almorzado", () => {
   const r = { ...rules, entryTime: "07:00", toleranceMinutes: 10, lunchCutoffTime: "12:30", assumedExitTime: "17:00" };
   const D = "2026-10-16";

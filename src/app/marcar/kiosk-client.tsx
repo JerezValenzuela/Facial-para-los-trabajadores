@@ -30,6 +30,7 @@ import {
   IconCameraLine,
   IconCheckLine,
   IconFileText,
+  IconLock,
   IconTarget,
 } from "@/components/icons";
 
@@ -1144,6 +1145,20 @@ function OptionButton({
         <span className={`${text} text-[#55504d]`}>{option.label}</span>
         <span className="flex items-center gap-1 text-sm font-bold text-[#1f9d55]">
           <IconCheckLine className="h-4 w-4" /> {option.at ? timeOnly.format(new Date(option.at)) : ""}
+        </span>
+      </div>
+    );
+  }
+  if (option.status === "locked") {
+    // Bloqueado por el orden obligatorio (no se puede pulsar).
+    return (
+      <div
+        aria-disabled="true"
+        className={`flex flex-col items-start gap-1.5 border-2 border-[#9b9592] bg-[#dcd9d7] text-left text-[#7a7370] ${pad}`}
+      >
+        <span className={text}>{option.label}</span>
+        <span className="flex items-center gap-1.5 text-sm font-bold">
+          <IconLock /> {option.note ?? "Bloqueado"}
         </span>
       </div>
     );

@@ -10,7 +10,7 @@ import {
   traceStats,
   verifyLiveness,
 } from "@/lib/face/liveness";
-import { kioskOptions } from "@/lib/attendance/events";
+import { kioskOptions, lunchAllowedToday } from "@/lib/attendance/events";
 import { FORGOT_EXIT_LOOKBACK_DAYS, findForgottenExit, forgottenExitDayLabel } from "@/lib/attendance/forgot-exit";
 import { getSettings } from "@/lib/settings";
 import { supabaseAdmin } from "@/lib/supabase/admin";
@@ -191,7 +191,7 @@ export async function POST(req: Request) {
   // Marcaciones de hoy → las 4 opciones (Entrar, Salir a almuerzo, Regresar, Salir) con su estado.
   // Y las de los últimos días → aviso si el último día trabajado quedó sin salida.
   const today = todayInTz();
-  const [{ data: todayEvents }, { data: recentEvents }] = await Promise.all([
+  const [{ data: todayEvents }, { data: recentEvents }, { data: emp }] = await Promise.all([
     db
       .from("attendance_events")
       .select("event_type, occurred_at")
@@ -203,7 +203,19 @@ export async function POST(req: Request) {
       .eq("employee_id", match.employee_id)
       .lt("work_date", today)
       .gte("work_date", addDays(today, -FORGOT_EXIT_LOOKBACK_DAYS)),
+    db.from("employees").select("no_lunch_days").eq("id", match.employee_id).maybeSingle(),
   ]);
+  // Botones según el ORDEN OBLIGATORIO. Hoy no hay almuerzo si es su día sin
+  // almuerzo (ej. sábado) o si entró desde la hora de corte (12:30, ya almorzado).
+  const entradaAt = todayEvents?.find((e) => e.event_type === "ENTRADA")?.occurred_at;
+  const lunchToday = lunchAllowedToday({
+    date: today,
+    noLunchDays: emp?.no_lunch_days,
+    entrada: entradaAt ? new Date(entradaAt) : null,
+    cutoffTime: settings.no_lunch_after_time,
+  });
+  const options = kioskOptions(todayEvents ?? [], { lunchToday });
+
   // Solo en la primera identificación del día (antes de marcar nada hoy).
   const forgottenDay = todayEvents?.length ? null : findForgottenExit(recentEvents ?? [], today);
 
@@ -212,8 +224,9 @@ export async function POST(req: Request) {
     status: "identified",
     ticket: ch.id,
     employee: { firstName, fullName: match.full_name },
-    options: kioskOptions(todayEvents ?? []),
-    suggested: status.next_event,
+    options,
+    // Sugerido = el primero que se puede marcar ahora (ej. sábado tras Entrar: Salir).
+    suggested: options.find((o) => o.status === "available")?.event ?? null,
     forgotExit: forgottenDay ? { date: forgottenDay, label: forgottenExitDayLabel(forgottenDay, today) } : null,
     ticketTtlSeconds: 60,
   });

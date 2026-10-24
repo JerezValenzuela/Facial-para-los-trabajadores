@@ -48,6 +48,8 @@ Las pruebas automáticas se corren con `npm test` (66 pruebas: estados, cálculo
 - [ ] Volver a marcar enseguida → “Acabas de marcar. Espera N segundos”.
 - [ ] Tras 60 s: lo ya marcado aparece con ✓ y su hora; lo anterior queda “Ya no disponible hoy”. Se puede saltar un paso (p. ej. Salir sin marcar almuerzo) pero no repetir ni retroceder.
 - [ ] “← Volver al inicio” (abajo) lleva a la pantalla para elegir Kiosco o Dashboard.
+- [ ] **Orden obligatorio**: primera vez del día solo *Entrar* (los demás grises con candado “Primero marca Entrar”). Tras Entrar: *Salir a almuerzo* y *Salir*. Tras Salir a almuerzo: solo *Regresar de almuerzo* (*Salir* bloqueado “Primero marca Regresar de almuerzo”). Tras Regresar: solo *Salir*. Sábado o entrada desde las 12:30: tras Entrar solo *Salir* (“Hoy sin almuerzo”). *Permiso* siempre habilitado.
+- [ ] Entrar 07:00 y Salir 11:30 sin almuerzo → 4 h 30, Completo (no se descuenta almuerzo).
 - [ ] **Salida olvidada**: si ayer (o su último día trabajado) marcó Entrar pero no Salir, al reconocerlo sale 5 s la pantalla roja “AYER OLVIDASTE MARCAR TU SALIDA” y luego las opciones. Si ya marcó algo hoy, o ayer sí marcó Salir, no sale. Después del aviso la cuenta regresiva es de **35 s**, y aunque se haya echado para atrás a leer el aviso, las opciones no se cancelan solas al aparecer.
 - [ ] Tras “¡Hola, …!” se ve la cuenta regresiva de 15 s (roja en los últimos 5). Si no se elige nada, vuelve a la espera con “Se acabó el tiempo para elegir…” y hay que escanearse de nuevo.
 - [ ] **Permiso → Todo el día**: pantalla verde “Permiso registrado · Todo el día”; en el dashboard el día sale en celeste “Permiso (todo el día)”.
