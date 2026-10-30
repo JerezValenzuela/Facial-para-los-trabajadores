@@ -269,7 +269,7 @@ describe("entró después del almuerzo (desde las 12:30): ya viene almorzado", (
 
 describe("sábado sin almuerzo (media jornada)", () => {
   const SAT = "2026-10-17";
-  const half = { ...rules, entryTime: "07:00", lunchExpected: false, assumedExitTime: "17:00" };
+  const half = { ...rules, entryTime: "07:00", lunchExpected: false, assumedExitTime: "17:00", halfDayExitTime: "13:00" };
   const after = { today: "2026-10-19", now: ec("2026-10-19", "09:00:00") };
 
   it("Entrar 07:10 y Salir 13:02 → día completo con 5 h 52 (no se descuenta almuerzo)", () => {
@@ -288,12 +288,36 @@ describe("sábado sin almuerzo (media jornada)", () => {
     expect(s.assumedLunch).toBe(true);
   });
 
-  it("si el sábado olvida marcar Salir, no se asumen las 17:00 (se pagaría de más)", () => {
+  it("si el sábado olvida marcar Salir, se cuenta hasta las 13:00 (no hasta las 17:00)", () => {
     const s = summarizeDay(SAT, { ENTRADA: ec(SAT, "07:00:00") }, half, after);
     expect(s.status).toBe("incompleto");
+    expect(s.workedMinutes).toBe(360); // 07:00 → 13:00, sin almuerzo
+    expect(s.assumedExit?.toISOString()).toBe(ec(SAT, "13:00:00").toISOString());
+    expect(s.assumedLunch).toBe(false);
+    expect(s.missing).toEqual(["SALIDA_FINAL"]);
+  });
+
+  it("Andrés (tu captura): sábado 17/10 entra 07:06 y no marca Salir → 5 h 54 hasta las 13:00", () => {
+    const s = summarizeDay(SAT, { ENTRADA: ec(SAT, "07:06:00") }, half, after);
+    expect(s.workedMinutes).toBe(354);
+  });
+
+  it("si el sábado sí marca Salir (13:20), vale la hora real", () => {
+    const s = summarizeDay(SAT, { ENTRADA: ec(SAT, "07:00:00"), SALIDA_FINAL: ec(SAT, "13:20:00") }, half, after);
+    expect(s.workedMinutes).toBe(380);
+    expect(s.assumedExit).toBeNull();
+    expect(s.status).toBe("completo");
+  });
+
+  it("si el sábado entra después de las 13:00 y no marca Salir, no se inventan horas", () => {
+    const s = summarizeDay(SAT, { ENTRADA: ec(SAT, "13:30:00") }, half, after);
     expect(s.workedMinutes).toBeNull();
     expect(s.assumedExit).toBeNull();
-    expect(s.missing).toEqual(["SALIDA_FINAL"]);
+  });
+
+  it("sin hora de media jornada configurada, el sábado queda sin horas como antes", () => {
+    const s = summarizeDay(SAT, { ENTRADA: ec(SAT, "07:00:00") }, { ...half, halfDayExitTime: null }, after);
+    expect(s.workedMinutes).toBeNull();
   });
 
   it("si igual sale al almuerzo el sábado, se descuenta lo que tomó", () => {

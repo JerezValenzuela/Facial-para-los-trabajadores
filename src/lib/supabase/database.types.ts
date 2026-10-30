@@ -614,6 +614,7 @@ export type Database = {
           evidence_enabled: boolean
           evidence_retention_days: number
           face_match_threshold: number
+          half_day_exit_time: string
           id: number
           liveness_steps: number
           lunch_alert_grace_minutes: number
@@ -637,6 +638,7 @@ export type Database = {
           evidence_enabled?: boolean
           evidence_retention_days?: number
           face_match_threshold?: number
+          half_day_exit_time?: string
           id?: number
           liveness_steps?: number
           lunch_alert_grace_minutes?: number
@@ -660,6 +662,7 @@ export type Database = {
           evidence_enabled?: boolean
           evidence_retention_days?: number
           face_match_threshold?: number
+          half_day_exit_time?: string
           id?: number
           liveness_steps?: number
           lunch_alert_grace_minutes?: number

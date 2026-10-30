@@ -57,7 +57,7 @@ describe("exportación a Excel", () => {
       branches: [{ id: "b1", name: "Pucará" }],
       employees: [{ id: "e1", full_name: "Ana Pérez", branch_id: "b1", active: true }],
       branchName: new Map([["b1", "Pucará"]]),
-      settings: { entry_tolerance_minutes: 7, lunch_allowed_minutes: 60, lunch_tolerance_minutes: 0, default_exit_time: "17:00:00", no_lunch_after_time: "12:30:00", day_close_time: "18:30:00" },
+      settings: { entry_tolerance_minutes: 7, lunch_allowed_minutes: 60, lunch_tolerance_minutes: 0, default_exit_time: "17:00:00", half_day_exit_time: "13:00:00", no_lunch_after_time: "12:30:00", day_close_time: "18:30:00" },
       totals: { rows: rows.length, late: 1, lunchExcess: 1, incomplete: 1, permissions: 0 },
     };
     const jpeg = Buffer.from(

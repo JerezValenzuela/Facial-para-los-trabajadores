@@ -162,6 +162,7 @@ export const settingsSchema = z.object({
   lunch_allowed_minutes: z.coerce.number().int().min(10).max(240),
   lunch_tolerance_minutes: z.coerce.number().int().min(0).max(60),
   default_exit_time: timeHHMM,
+  half_day_exit_time: timeHHMM,
   no_lunch_after_time: timeHHMM,
   day_close_time: timeHHMM,
   lunch_alert_grace_minutes: z.coerce.number().int().min(0).max(120),

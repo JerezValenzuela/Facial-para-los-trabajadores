@@ -19,7 +19,8 @@
  *    almuerzo (se suman solo esos minutos, son reales: no se asume nada).
  * El día sigue "Incompleto" (se ve que no marcó) y esas horas se suman aparte como
  * "horas asumidas", para poder decidir si se pagan. Si marca, vale la hora real.
- * En media jornada (sin almuerzo) no se asume la salida: se pagaría de más.
+ * En media jornada (día sin almuerzo, ej. sábado de 7:00 a 13:00) la salida
+ * asumida es la de media jornada (13:00, Configuración), no la de las 17:00.
  *
  * Cierre del día (18:30, Configuración): desde esa hora el día de HOY se calcula
  * como terminado (deja de estar "En curso" y se aplican las reglas de arriba).
@@ -54,6 +55,8 @@ export type DayRules = {
   lunchToleranceMinutes?: number;
   /** Si olvidó marcar "Salir" (día ya terminado), sus horas se cuentan hasta esta hora. */
   assumedExitTime?: string | null;
+  /** Igual, pero en media jornada (día sin almuerzo, ej. sábado): "13:00". */
+  halfDayExitTime?: string | null;
   /** false = día sin almuerzo (media jornada): basta Entrar + Salir. Por defecto true. */
   lunchExpected?: boolean;
   /** Si entra desde esta hora ("12:30"), ya viene almorzado: no se pide ni descuenta almuerzo. */
@@ -191,10 +194,11 @@ export function summarizeDay(
     }
 
     let exit = salidaFinal;
-    // La salida asumida (17:00) es para jornadas con almuerzo; en media jornada
-    // (ej. sábado) se pagaría de más, así que ahí no se asume.
-    if (!exit && lunchExpected && dayOver && rules.assumedExitTime) {
-      const candidate = zonedToUtc(date, rules.assumedExitTime);
+    // Olvidó marcar "Salir": jornada con almuerzo → 17:00; media jornada (día
+    // sin almuerzo del empleado, ej. sábado de 7 a 13) → 13:00.
+    const exitTime = lunchExpected ? rules.assumedExitTime : rules.halfDayExitTime;
+    if (!exit && dayOver && exitTime) {
+      const candidate = zonedToUtc(date, exitTime);
       const lastMark = [entrada, salidaAlmuerzo, regresoAlmuerzo].reduce<Date>((a, b) => (b && b > a ? b : a), entrada);
       if (candidate > lastMark) exit = assumedExit = candidate;
     }
@@ -315,6 +319,7 @@ export function buildDailyReport(input: {
   lunchAllowedMinutes: number;
   lunchToleranceMinutes?: number;
   assumedExitTime?: string | null;
+  halfDayExitTime?: string | null;
   lunchCutoffTime?: string | null;
   dayCloseTime?: string | null;
   permissions?: ReportPermission[];
@@ -373,6 +378,7 @@ export function buildDailyReport(input: {
           lunchAllowedMinutes: input.lunchAllowedMinutes,
           lunchToleranceMinutes: input.lunchToleranceMinutes,
           assumedExitTime: input.assumedExitTime,
+          halfDayExitTime: input.halfDayExitTime,
           lunchCutoffTime: input.lunchCutoffTime,
           dayCloseTime: input.dayCloseTime,
           lunchExpected: hasLunch(schedule, date),

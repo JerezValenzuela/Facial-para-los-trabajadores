@@ -10,6 +10,7 @@ export const DEFAULT_SETTINGS: Settings = {
   lunch_allowed_minutes: 60,
   lunch_tolerance_minutes: 10,
   default_exit_time: "17:00:00",
+  half_day_exit_time: "13:00:00",
   no_lunch_after_time: "12:30:00",
   day_close_time: "18:30:00",
   lunch_alert_grace_minutes: 5,

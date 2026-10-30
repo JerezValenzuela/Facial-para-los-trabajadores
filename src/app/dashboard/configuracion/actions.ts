@@ -16,6 +16,7 @@ export async function updateSettingsAction(_prev: ActionResult, formData: FormDa
       lunch_allowed_minutes: formData.get("lunch_allowed_minutes"),
       lunch_tolerance_minutes: formData.get("lunch_tolerance_minutes"),
       default_exit_time: formData.get("default_exit_time"),
+      half_day_exit_time: formData.get("half_day_exit_time"),
       no_lunch_after_time: formData.get("no_lunch_after_time"),
       day_close_time: formData.get("day_close_time"),
       lunch_alert_grace_minutes: formData.get("lunch_alert_grace_minutes"),

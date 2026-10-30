@@ -28,7 +28,7 @@ export default async function DayDetailPage(props: PageProps<"/dashboard/asisten
       .order("occurred_at"),
     supabase
       .from("settings")
-      .select("entry_tolerance_minutes, lunch_allowed_minutes, lunch_tolerance_minutes, default_exit_time, no_lunch_after_time, day_close_time")
+      .select("entry_tolerance_minutes, lunch_allowed_minutes, lunch_tolerance_minutes, default_exit_time, half_day_exit_time, no_lunch_after_time, day_close_time")
       .eq("id", 1)
       .maybeSingle(),
     supabase.from("branches").select("id, name"),
@@ -48,6 +48,7 @@ export default async function DayDetailPage(props: PageProps<"/dashboard/asisten
       lunchAllowedMinutes: settings?.lunch_allowed_minutes ?? 60,
       lunchToleranceMinutes: settings?.lunch_tolerance_minutes ?? 10,
       assumedExitTime: settings?.default_exit_time ?? "17:00",
+      halfDayExitTime: settings?.half_day_exit_time ?? "13:00",
       lunchCutoffTime: settings?.no_lunch_after_time ?? "12:30",
       dayCloseTime: settings?.day_close_time ?? "18:30",
       lunchExpected: hasLunch(schedule, date),

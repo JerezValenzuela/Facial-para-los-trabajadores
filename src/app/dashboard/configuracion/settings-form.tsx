@@ -12,6 +12,7 @@ export type SettingsValues = {
   lunch_allowed_minutes: number;
   lunch_tolerance_minutes: number;
   default_exit_time: string;
+  half_day_exit_time: string;
   no_lunch_after_time: string;
   day_close_time: string;
   lunch_alert_grace_minutes: number;
@@ -106,6 +107,21 @@ export function SettingsForm({ values }: { values: SettingsValues }) {
             Si alguien no marca “Salir”, sus horas se calculan hasta esta hora. Si marca más tarde, se cuenta la hora real.
           </p>
           <FieldError message={fe?.default_exit_time} />
+        </div>
+        <div>
+          <label className="label" htmlFor="half_day_exit_time">Salida si olvidan marcar (sábado / media jornada)</label>
+          <input
+            id="half_day_exit_time"
+            name="half_day_exit_time"
+            type="time"
+            required
+            defaultValue={values.half_day_exit_time.slice(0, 5)}
+            className="input max-w-40"
+          />
+          <p className="mt-1 text-xs text-slate-500">
+            En sus días sin almuerzo (sábado de 7:00 a 13:00), si no marca “Salir” se cuentan sus horas hasta esta hora.
+          </p>
+          <FieldError message={fe?.half_day_exit_time} />
         </div>
         <div>
           <label className="label" htmlFor="no_lunch_after_time">Si entra desde esta hora, ya viene almorzado</label>

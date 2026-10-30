@@ -143,6 +143,7 @@ export default async function AttendancePage(props: PageProps<"/dashboard">) {
           branchNames={Object.fromEntries(report.branchName)}
           detailHref={(employeeId) => `/dashboard?${filtersToQuery({ ...filters, employeeId })}`}
           defaultExitTime={report.settings.default_exit_time.slice(0, 5)}
+          halfDayExitTime={report.settings.half_day_exit_time.slice(0, 5)}
         />
       ) : (
         <AttendanceTable
@@ -156,7 +157,8 @@ export default async function AttendancePage(props: PageProps<"/dashboard">) {
         <span className="font-semibold text-amber-700">amarillo</span>: marcaciones incompletas. En{" "}
         <span className="font-semibold text-sky-700">celeste</span>: permiso todo el día. “Libre” en Horario: marcó en un día
         que no le toca trabajar (no cuenta atraso). Valores con <i>*</i> en gris: no marcó bien; se cuenta hasta las{" "}
-        {report.settings.default_exit_time.slice(0, 5)} con {report.settings.lunch_allowed_minutes} min de almuerzo (horas
+        {report.settings.default_exit_time.slice(0, 5)} con {report.settings.lunch_allowed_minutes} min de almuerzo (sábado: hasta las{" "}
+        {report.settings.half_day_exit_time.slice(0, 5)}) (horas
         asumidas). Toca una fila para ver sus fotos. Horas en hora de Ecuador.
       </p>
     </>

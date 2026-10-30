@@ -12,11 +12,14 @@ export function EmployeeSummaryTable({
   branchNames,
   detailHref,
   defaultExitTime,
+  halfDayExitTime = "13:00",
 }: {
   summary: { employees: EmployeeTotals[]; total: TotalsRow };
   branchNames: Record<string, string>;
   detailHref: (employeeId: string) => string;
   defaultExitTime: string;
+  /** Salida asumida en media jornada (sábado). */
+  halfDayExitTime?: string;
 }) {
   return (
     <>
@@ -69,7 +72,7 @@ export function EmployeeSummaryTable({
       <ul className="mt-3 space-y-1 text-xs text-slate-500">
         <li>
           <b>Horas marcadas</b> = días bien marcados (de la entrada a la salida, menos el almuerzo que tomó).{" "}
-          <b>Horas asumidas</b> = días que no marcó bien: se cuenta hasta las {defaultExitTime} con 1 h de almuerzo.{" "}
+          <b>Horas asumidas</b> = días que no marcó bien: se cuenta hasta las {defaultExitTime} con 1 h de almuerzo (sábado / media jornada: hasta las {halfDayExitTime}, sin almuerzo).{" "}
           <b>Total horas</b> = las dos juntas. Si decides no pagar los días mal marcados, paga solo las <b>horas marcadas</b>.
         </li>
         <li>
@@ -79,7 +82,7 @@ export function EmployeeSummaryTable({
         <li>
           <b>No marcó bien</b>: días con entrada que no marcó completos (amarillo). Si salió al almuerzo y no volvió a marcar,
           solo se cuentan sus horas hasta el almuerzo. <b>Sin horas</b>: no se
-          pudieron calcular (por ejemplo, un sábado sin “Salir”); revisa esos días (toca el nombre).
+          pudieron calcular (por ejemplo, entró después de la hora de salida asumida y no marcó “Salir”); revisa esos días (toca el nombre).
         </li>
       </ul>
     </>

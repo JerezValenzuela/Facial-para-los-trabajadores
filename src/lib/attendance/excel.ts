@@ -102,7 +102,7 @@ export async function buildAttendanceWorkbook(
     `  ·  Sucursal: ${branchFilter}  ·  Empleado: ${employeeFilter}` +
     `${filters.onlyIssues ? "  ·  Solo novedades" : ""}` +
     `  ·  Tolerancia: ${report.settings.entry_tolerance_minutes} min  ·  Almuerzo permitido: ${report.settings.lunch_allowed_minutes} min` +
-    ` (+${report.settings.lunch_tolerance_minutes} min de tolerancia)  ·  Salida si olvidan marcar: ${report.settings.default_exit_time.slice(0, 5)}` +
+    ` (+${report.settings.lunch_tolerance_minutes} min de tolerancia)  ·  Salida si olvidan marcar: ${report.settings.default_exit_time.slice(0, 5)} (sábado: ${report.settings.half_day_exit_time.slice(0, 5)})` +
     `  ·  Generado: ${formatDateTime(new Date())} (hora de Ecuador)`;
   ws.getCell(2, 1).font = { size: 10, color: { argb: "FF475569" } };
 
@@ -295,10 +295,10 @@ export async function buildAttendanceWorkbook(
   const notes = [
     `Período: ${filters.from.split("-").reverse().join("/")} al ${filters.to.split("-").reverse().join("/")}  ·  Sucursal: ${branchFilter}  ·  Empleado: ${employeeFilter}`,
     "Horas marcadas = días bien marcados (de la entrada a la salida, menos el almuerzo que tomó).",
-    `Horas asumidas = días que no marcó bien: se cuenta hasta las ${report.settings.default_exit_time.slice(0, 5)} con ${report.settings.lunch_allowed_minutes} min de almuerzo. TOTAL HORAS = marcadas + asumidas. Si no se pagan los días mal marcados, pagar solo las horas marcadas.`,
+    `Horas asumidas = días que no marcó bien: se cuenta hasta las ${report.settings.default_exit_time.slice(0, 5)} con ${report.settings.lunch_allowed_minutes} min de almuerzo (sábado / media jornada: hasta las ${report.settings.half_day_exit_time.slice(0, 5)}, sin almuerzo). TOTAL HORAS = marcadas + asumidas. Si no se pagan los días mal marcados, pagar solo las horas marcadas.`,
     "Minutos perdidos = atraso de entrada + exceso de almuerzo. Ya están fuera de las horas reales: son informativos, NO se restan otra vez.",
     "No marcó bien = días con entrada incompletos. Si salió al almuerzo y no volvió a marcar, solo se cuentan sus horas hasta el almuerzo (horas marcadas).",
-    "Días sin horas (revisar): no se pudieron calcular (ej. un sábado sin \"Salir\"); revisar.",
+    "Días sin horas (revisar): no se pudieron calcular (ej. entró después de la hora de salida asumida y no marcó \"Salir\"); revisar.",
   ];
   notes.forEach((text, i) => {
     const cell = sum.getCell(totalsByEmployee.length + 4 + i, 1);
