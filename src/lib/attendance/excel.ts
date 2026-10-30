@@ -46,6 +46,41 @@ const GREEN_TEXT = "FF047857";
 const SIGNED_MIN = '+0" min";-0" min";0" min"';
 const MUTED_TEXT = "FF64748B";
 
+/** "2026-10-30" → "30-10-2026" (como se lee en Ecuador; "/" no se permite en nombres de archivo). */
+function fileDate(dateStr: string): string {
+  const [y, m, d] = dateStr.split("-");
+  return `${d}-${m}-${y}`;
+}
+
+/**
+ * Nombre con el que se descarga el Excel, según los filtros aplicados:
+ *  "Luis Tamayo desde 01-10-2026 hasta 30-10-2026.xlsx"
+ *  "Todos los empleados de Pucará 30-10-2026.xlsx" (un solo día)
+ */
+export function excelFileName(report: Pick<ReportData, "employees" | "branchName">, filters: ReportFilters): string {
+  const employee = filters.employeeId ? report.employees.find((e) => e.id === filters.employeeId)?.full_name : null;
+  const branch = filters.branchId ? report.branchName.get(filters.branchId) : null;
+  const who = employee ?? (branch ? `Todos los empleados de ${branch}` : "Todos los empleados");
+  const when =
+    filters.from === filters.to ? fileDate(filters.from) : `desde ${fileDate(filters.from)} hasta ${fileDate(filters.to)}`;
+  const name = `${who} ${when}${filters.onlyIssues ? " (solo novedades)" : ""}`;
+  // Sin los caracteres que Windows no acepta en un nombre de archivo.
+  return `${name.replace(/[\\/:*?"<>|]/g, "").replace(/\s+/g, " ").trim()}.xlsx`;
+}
+
+/**
+ * Cabecera Content-Disposition que conserva tildes y ñ ("Andrés Martínez"):
+ * filename* lleva el nombre exacto y filename una copia sin tildes por si acaso.
+ */
+export function attachmentDisposition(fileName: string): string {
+  const ascii = fileName
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^\x20-\x7e]|["\\]/g, "_");
+  const utf8 = encodeURIComponent(fileName).replace(/['()*]/g, (c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`);
+  return `attachment; filename="${ascii}"; filename*=UTF-8''${utf8}`;
+}
+
 /**
  * Libro Excel con formato profesional; respeta exactamente los filtros del dashboard.
  * `photos`: miniaturas JPEG por ruta de evidencia (las descarga la ruta de exportación).

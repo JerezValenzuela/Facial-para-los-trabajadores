@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import ExcelJS from "exceljs";
-import { buildAttendanceWorkbook } from "@/lib/attendance/excel";
+import { attachmentDisposition, buildAttendanceWorkbook, excelFileName } from "@/lib/attendance/excel";
 import { buildDailyReport } from "@/lib/attendance/calc";
-import { lastMonthRange, parseReportFilters, thisMonthRange } from "@/lib/attendance/filters";
+import { lastMonthRange, parseReportFilters, thisMonthRange, type ReportFilters } from "@/lib/attendance/filters";
 import type { ReportData } from "@/lib/attendance/report-data";
 
 const ec = (date: string, time: string) => new Date(`${date}T${time}-05:00`).toISOString();
@@ -142,5 +142,53 @@ describe("exportación a Excel", () => {
     expect(summary.getRow(2).getCell(c("Suplementarias (horas)")).value).toBe("−23 min");
     expect(summary.getRow(3).getCell(1).value).toBe("TOTAL");
     expect(wb.views[0]?.activeTab).toBe(1);
+  });
+});
+
+describe("nombre del Excel al descargar", () => {
+  const LUIS = "11111111-1111-4111-8111-111111111111";
+  const ANDRES = "22222222-2222-4222-8222-222222222222";
+  const PEDRO = "33333333-3333-4333-8333-333333333333";
+  const report = {
+    employees: [
+      { id: LUIS, full_name: "Luis Tamayo", branch_id: "b1", active: true },
+      { id: ANDRES, full_name: "Andrés Martínez", branch_id: "b1", active: true },
+      { id: PEDRO, full_name: 'Pedro: "El Rápido"', branch_id: "b1", active: false },
+    ],
+    branchName: new Map([["b1", "Pucará"]]),
+  };
+  const f = (over: Partial<ReportFilters>): ReportFilters => ({
+    from: "2026-10-01",
+    to: "2026-10-30",
+    branchId: null,
+    employeeId: null,
+    onlyIssues: false,
+    ...over,
+  });
+
+  it("con un empleado: su nombre y desde / hasta qué fecha", () => {
+    expect(excelFileName(report, f({ employeeId: LUIS }))).toBe("Luis Tamayo desde 01-10-2026 hasta 30-10-2026.xlsx");
+    expect(excelFileName(report, f({ employeeId: ANDRES }))).toBe("Andrés Martínez desde 01-10-2026 hasta 30-10-2026.xlsx");
+  });
+
+  it("sin empleado: todos (o todos los de la sucursal); un solo día lleva solo esa fecha", () => {
+    expect(excelFileName(report, f({}))).toBe("Todos los empleados desde 01-10-2026 hasta 30-10-2026.xlsx");
+    expect(excelFileName(report, f({ branchId: "b1", from: "2026-10-30", to: "2026-10-30" }))).toBe(
+      "Todos los empleados de Pucará 30-10-2026.xlsx",
+    );
+  });
+
+  it("aclara cuando trae solo novedades y quita caracteres que Windows no acepta", () => {
+    expect(excelFileName(report, f({ employeeId: LUIS, onlyIssues: true }))).toBe(
+      "Luis Tamayo desde 01-10-2026 hasta 30-10-2026 (solo novedades).xlsx",
+    );
+    expect(excelFileName(report, f({ employeeId: PEDRO }))).toBe("Pedro El Rápido desde 01-10-2026 hasta 30-10-2026.xlsx");
+  });
+
+  it("la descarga conserva tildes y ñ (y deja una copia sin tildes)", () => {
+    expect(attachmentDisposition("Andrés Muñoz desde 01-10-2026 hasta 30-10-2026 (solo novedades).xlsx")).toBe(
+      'attachment; filename="Andres Munoz desde 01-10-2026 hasta 30-10-2026 (solo novedades).xlsx"; ' +
+        "filename*=UTF-8''Andr%C3%A9s%20Mu%C3%B1oz%20desde%2001-10-2026%20hasta%2030-10-2026%20%28solo%20novedades%29.xlsx",
+    );
   });
 });

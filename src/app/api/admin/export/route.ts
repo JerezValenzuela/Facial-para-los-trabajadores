@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getAdminCheck } from "@/lib/auth";
 import { parseReportFilters } from "@/lib/attendance/filters";
 import { loadReport } from "@/lib/attendance/report-data";
-import { buildAttendanceWorkbook } from "@/lib/attendance/excel";
+import { attachmentDisposition, buildAttendanceWorkbook, excelFileName } from "@/lib/attendance/excel";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { EVIDENCE_BUCKET } from "@/lib/evidence";
 import { logError } from "@/lib/log";
@@ -43,12 +43,13 @@ export async function GET(req: Request) {
     const photos = await downloadPhotos(report.rows.map((r) => r.photoPath ?? "").filter(Boolean));
     // Desde la vista "Resumen por empleado", el Excel se abre en esa hoja.
     const xlsx = await buildAttendanceWorkbook(report, filters, photos, { openSummary: params.get("vista") === "resumen" });
-    const name = `asistencia_${filters.from}_a_${filters.to}.xlsx`;
+    // Ej.: "Luis Tamayo desde 01-10-2026 hasta 30-10-2026.xlsx"
+    const name = excelFileName(report, filters);
     return new NextResponse(new Uint8Array(xlsx), {
       status: 200,
       headers: {
         "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        "Content-Disposition": `attachment; filename="${name}"`,
+        "Content-Disposition": attachmentDisposition(name),
         "Cache-Control": "no-store",
       },
     });

@@ -95,7 +95,7 @@ Las pruebas automáticas se corren con `npm test` (66 pruebas: estados, cálculo
 - [ ] Tocar una fila → ventana “¿Qué fotos quieres ver?” con Todas / Entrada / Salida almuerzo / Regreso / Salida (y Permiso). Se ve la foto completa con el fondo, la cara en pequeño, la hora y si la IP es de la sucursal (✓) o no registrada (⚠ posible marcación fuera del local).
 - [ ] Ficha del empleado → muestra su última foto tomada por el kiosco.
 - [ ] Excel: columna “Permiso” y filas celestes para permisos de todo el día.
-- [ ] **Descargar Excel** respeta los filtros; al abrirlo: encabezado naranja, filas rojas/amarillas, horas con formato hh:mm, hoja “Resumen por empleado”.
+- [ ] **Descargar Excel** respeta los filtros y se descarga con un nombre claro: con un empleado elegido → “Luis Tamayo desde 01-10-2026 hasta 30-10-2026.xlsx”; sin empleado → “Todos los empleados …” (o “Todos los empleados de Pucará …”); un solo día lleva solo esa fecha. Al abrirlo: encabezado naranja, filas rojas/amarillas, horas con formato hh:mm, hoja “Resumen por empleado”.
 
 ## 8. Alertas (con `ALERTS_ENABLED=false`)
 - [ ] El exceso de almuerzo aparece en **Alertas** como “Pendiente de envío” y NO llega ningún mensaje.
