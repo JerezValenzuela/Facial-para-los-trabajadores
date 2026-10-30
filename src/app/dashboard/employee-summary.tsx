@@ -79,8 +79,9 @@ export function EmployeeSummaryTable({
           <b>Total horas</b> = las dos juntas. Si decides no pagar los días mal marcados, paga solo las <b>horas marcadas</b>.
         </li>
         <li>
-          <b>Suplementarias</b> (lunes a viernes) = tiempo contable de cada día − 8 h: llegar antes no suma; el atraso y el
-          exceso de almuerzo (pasada la tolerancia) restan; quedarse más tarde suma; los permisos restan. Es la suma neta del
+          <b>Suplementarias</b> (lunes a viernes) = tiempo contable de cada día − 8 h. Nada suma (ni llegar antes, ni volver
+          antes del almuerzo, ni quedarse después de las {defaultExitTime}): el atraso y el exceso de almuerzo (pasada la
+          tolerancia), irse antes y los permisos restan. Es la suma neta del
           período: <span className="text-emerald-700">positivo</span> = horas a favor, <span className="text-red-600">negativo</span> = debe tiempo.
         </li>
         <li>

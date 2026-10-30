@@ -39,8 +39,9 @@
  * Horario por empleado (ver schedule.ts): solo aparecen sus días de trabajo.
  * Si marca en un día libre, la fila sale como "Día libre" y sin atraso.
  *
- * Horas suplementarias (lunes a viernes) = tiempo contable − 8 h (ver
- * computeSupplementary). Tolerancias con fecha de vigencia (tolerance.ts).
+ * Horas suplementarias (lunes a viernes) = tiempo contable − 8 h, sin pasar de
+ * la salida normal: nada suma, solo resta (ver computeSupplementary).
+ * Tolerancias con fecha de vigencia (tolerance.ts).
  *
  * Todos los minutos son minutos COMPLETOS (se truncan los segundos).
  * Las fechas de calendario están en America/Guayaquil.
@@ -260,14 +261,18 @@ export const LEGAL_DAILY_MINUTES = 480;
 
 /**
  * HORAS SUPLEMENTARIAS del día (solo lunes a viernes) = tiempo contable − 8 h.
+ * NADA suma: el máximo es lo que da su horario (7:00 a 17:00 con 1 h de
+ * almuerzo = +1 h; quien entra 7:30 = +30 min) y desde ahí solo se resta.
  *  - Entrada: cuenta desde su hora de entrada. Llegar antes NO suma; dentro de
  *    la tolerancia no resta; pasado ese margen resta el atraso (7:06 con 5 min
  *    de tolerancia = 1 min).
  *  - Almuerzo: cuenta el permitido (1 h) + el exceso que pase la tolerancia
- *    (1 h 05 no resta; 1 h 06 resta 1 min). Sin almuerzo marcado: 1 h asumida;
- *    media jornada / entró ya almorzado / se fue antes del almuerzo: 0.
- *  - Salida: la real (o la asumida si olvidó marcar). Quedarse más tarde suma;
- *    irse antes resta. Si salió al almuerzo y no volvió: hasta el almuerzo.
+ *    (1 h 05 no resta; 1 h 06 resta 1 min; volver antes NO suma). Sin almuerzo
+ *    marcado: 1 h asumida; media jornada / entró ya almorzado / se fue antes
+ *    del almuerzo: 0.
+ *  - Salida: la real (o la asumida si olvidó marcar), pero solo hasta la salida
+ *    normal (17:00; media jornada 13:00): quedarse más tarde NO suma; irse
+ *    antes resta. Si salió al almuerzo y no volvió: hasta el almuerzo.
  *  - Permiso por horas: el tiempo de permiso dentro de la jornada resta.
  * Negativo = el empleado debe ese tiempo. Sábado y domingo (horas extra, aparte),
  * faltas y días sin horas calculables → null.
@@ -275,8 +280,14 @@ export const LEGAL_DAILY_MINUTES = 480;
 export function computeSupplementary(date: string, s: DaySummary, rules: DayRules): number | null {
   if (isoWeekday(date) > 5) return null;
   if (!s.entrada || s.workedMinutes === null) return null;
-  const exit = s.leftAtLunch ? s.salidaAlmuerzo : (s.salidaFinal ?? s.assumedExit);
+  let exit = s.leftAtLunch ? s.salidaAlmuerzo : (s.salidaFinal ?? s.assumedExit);
   if (!exit) return null;
+  // Quedarse después de la salida normal no suma: se cuenta solo hasta esa hora.
+  const normalExitTime = s.lunchExpected ? rules.assumedExitTime : rules.halfDayExitTime;
+  if (normalExitTime) {
+    const normalExit = zonedToUtc(date, normalExitTime);
+    if (exit > normalExit) exit = normalExit;
+  }
 
   const scheduled = zonedToUtc(date, rules.entryTime);
   const late = Math.max(0, minutesBetween(scheduled, s.entrada) - rules.toleranceMinutes);
@@ -287,7 +298,8 @@ export function computeSupplementary(date: string, s: DaySummary, rules: DayRule
   else if (s.salidaAlmuerzo && s.regresoAlmuerzo) lunch = rules.lunchAllowedMinutes + s.lunchExcessMinutes;
   else if (s.assumedLunch) lunch = rules.lunchAllowedMinutes;
 
-  let minutes = minutesBetween(start, exit) - lunch;
+  // Nunca negativo por sí solo (ej. entró después de la salida normal).
+  let minutes = Math.max(0, minutesBetween(start, exit) - lunch);
 
   const p = s.permission;
   if (p?.kind === "horas" && p.startTime && p.hours) {

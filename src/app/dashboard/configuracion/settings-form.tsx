@@ -105,6 +105,7 @@ export function SettingsForm({ values }: { values: SettingsValues }) {
           />
           <p className="mt-1 text-xs text-slate-500">
             Si alguien no marca “Salir”, sus horas se calculan hasta esta hora. Si marca más tarde, se cuenta la hora real.
+            También es la salida normal: quedarse después no suma horas suplementarias.
           </p>
           <FieldError message={fe?.default_exit_time} />
         </div>

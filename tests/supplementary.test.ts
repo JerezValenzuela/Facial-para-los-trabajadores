@@ -72,8 +72,22 @@ describe("horas suplementarias (lunes a viernes, tolerancia 5 min)", () => {
     expect(supl("07:00", ["12:00", "12:40"], "17:00")).toBe(60);
   });
 
-  it("quedarse hasta las 18:00 suma → +2 h", () => {
-    expect(supl("07:00", ["12:00", "13:00"], "18:00")).toBe(120);
+  it("quedarse más tarde NO suma: sale a las 18:00 → sigue en +1 h", () => {
+    expect(supl("07:00", ["12:00", "13:00"], "18:00")).toBe(60);
+    expect(supl("07:00", ["12:00", "13:00"], "17:40")).toBe(60);
+  });
+
+  it("nada suma: llega 6:40, almuerza 40 min y se queda hasta 18:30 → solo +1 h", () => {
+    expect(supl("06:40", ["12:00", "12:40"], "18:30")).toBe(60);
+  });
+
+  it("quedarse más tarde no compensa el atraso: entra 7:20 y sale 17:30 → +45 min", () => {
+    expect(supl("07:20", ["12:00", "13:00"], "17:30")).toBe(45);
+  });
+
+  it("irse antes sí resta: sale 16:00 → 0; 16:30 → +30 min", () => {
+    expect(supl("07:00", ["12:00", "13:00"], "16:00")).toBe(0);
+    expect(supl("07:00", ["12:00", "13:00"], "16:30")).toBe(30);
   });
 
   it("negativo = debe tiempo: entra 8:00 y almuerza 1 h 30 → −20 min; se va a las 15:00 → −1 h", () => {
@@ -81,8 +95,19 @@ describe("horas suplementarias (lunes a viernes, tolerancia 5 min)", () => {
     expect(supl("07:00", ["12:00", "13:00"], "15:00")).toBe(-60);
   });
 
-  it("cada empleado con su hora de entrada: Andrés (7:30) sale 17:00 → +30 min", () => {
-    expect(supl("07:28", ["12:30", "13:30"], "17:00", { ...rules, entryTime: "07:30" })).toBe(30);
+  it("cada empleado con su hora de entrada: Andrés (7:30) sale 17:00 → +30 min; aunque se quede hasta las 18:00, máximo +30 min", () => {
+    const andres = { ...rules, entryTime: "07:30" };
+    expect(supl("07:28", ["12:30", "13:30"], "17:00", andres)).toBe(30);
+    expect(supl("07:28", ["12:30", "13:30"], "18:00", andres)).toBe(30);
+    expect(supl("07:41", ["12:30", "13:30"], "18:00", andres)).toBe(24); // 6 min de atraso
+  });
+
+  it("media jornada entre semana: se cuenta solo hasta la salida de media jornada (13:00)", () => {
+    expect(supl("07:00", null, "14:00", { ...rules, lunchExpected: false })).toBe(-120);
+  });
+
+  it("entró después de la salida normal → no cuenta nada de ese rato (debe las 8 h)", () => {
+    expect(supl("17:30", null, "18:00")).toBe(-480);
   });
 
   it("olvidó marcar Salir → se calcula hasta las 17:00 (asumido)", () => {

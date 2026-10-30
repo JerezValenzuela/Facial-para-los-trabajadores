@@ -325,7 +325,7 @@ export async function buildAttendanceWorkbook(
     "Horas marcadas = días bien marcados (de la entrada a la salida, menos el almuerzo que tomó).",
     `Horas asumidas = días que no marcó bien: se cuenta hasta las ${report.settings.default_exit_time.slice(0, 5)} con ${report.settings.lunch_allowed_minutes} min de almuerzo (sábado / media jornada: hasta las ${report.settings.half_day_exit_time.slice(0, 5)}, sin almuerzo). TOTAL HORAS = marcadas + asumidas. Si no se pagan los días mal marcados, pagar solo las horas marcadas.`,
     "Minutos perdidos = atraso de entrada + exceso de almuerzo. Ya están fuera de las horas reales: son informativos, NO se restan otra vez.",
-    "Horas suplementarias (lunes a viernes) = tiempo contable de cada día − 8 h: llegar antes no suma; atraso y exceso de almuerzo (pasada la tolerancia) restan; quedarse más tarde suma; los permisos restan. Positivo = horas a favor; negativo = debe tiempo. Sábados: no aplica (horas extra).",
+    "Horas suplementarias (lunes a viernes) = tiempo contable de cada día − 8 h. Nada suma (ni llegar antes, ni volver antes del almuerzo, ni quedarse después de la salida normal); atraso y exceso de almuerzo (pasada la tolerancia), irse antes y los permisos restan. Positivo = horas a favor; negativo = debe tiempo. Sábados: no aplica (horas extra).",
     "No marcó bien = días con entrada incompletos. Si salió al almuerzo y no volvió a marcar, solo se cuentan sus horas hasta el almuerzo (horas marcadas).",
     "Días sin horas (revisar): no se pudieron calcular (ej. entró después de la hora de salida asumida y no marcó \"Salir\"); revisar.",
   ];
