@@ -10,7 +10,8 @@ import {
 import { summarizeByEmployee } from "@/lib/attendance/calc";
 import { loadReport } from "@/lib/attendance/report-data";
 import Link from "next/link";
-import { addDays, formatDateLabel, formatMinutes, todayInTz } from "@/lib/time";
+import { addDays, formatDateLabel, formatMinutes, formatSignedMinutes, todayInTz } from "@/lib/time";
+import { describeTolerance } from "@/lib/attendance/tolerance";
 import { EmptyState, PageHeader } from "@/components/ui";
 import { IconDownload } from "@/components/icons";
 import { AttendanceTable } from "./attendance-table";
@@ -35,6 +36,7 @@ export default async function AttendancePage(props: PageProps<"/dashboard">) {
   const quick = (r: { from: string; to: string }) => `/dashboard?${filtersToQuery({ ...filters, ...r })}${viewQuery}`;
   const viewHref = (v: "lista" | "resumen") => `/dashboard?${query}${v === "resumen" ? "&vista=resumen" : ""}`;
   const summary = summarizeByEmployee(report.rows);
+  const tolFallback = { entry: report.settings.entry_tolerance_minutes, lunch: report.settings.lunch_tolerance_minutes };
   const quickLinks: { label: string; range: { from: string; to: string } }[] = [
     { label: "Hoy", range: { from: today, to: today } },
     { label: "Ayer", range: { from: addDays(today, -1), to: addDays(today, -1) } },
@@ -48,7 +50,7 @@ export default async function AttendancePage(props: PageProps<"/dashboard">) {
     <>
       <PageHeader
         title="Asistencia"
-        description={`${range} · Tolerancia ${report.settings.entry_tolerance_minutes} min · Almuerzo ${report.settings.lunch_allowed_minutes} min (+${report.settings.lunch_tolerance_minutes} de tolerancia)`}
+        description={`${range} · Tolerancia de entrada: ${describeTolerance(report.tolerancePeriods, filters.from, filters.to, tolFallback, "entry")} · Almuerzo ${report.settings.lunch_allowed_minutes} min (tolerancia: ${describeTolerance(report.tolerancePeriods, filters.from, filters.to, tolFallback, "lunch")})`}
         actions={
           <a href={`/api/admin/export?${query}${viewQuery}`} className="btn-primary">
             <IconDownload className="h-4 w-4" /> Descargar Excel
@@ -109,7 +111,7 @@ export default async function AttendancePage(props: PageProps<"/dashboard">) {
         <Stat label="Con atraso" value={report.totals.late} tone="red" />
         <Stat label="Exceso de almuerzo" value={report.totals.lunchExcess} tone="red" />
         <Stat label="Incompletos" value={report.totals.incomplete} tone="yellow" />
-        <Stat label="Permisos" value={report.totals.permissions} />
+        <Stat label="Suplementarias" value={formatSignedMinutes(summary.total.supplementaryMinutes)} signed={summary.total.supplementaryMinutes} />
       </div>
 
       <div className="mb-3 inline-flex rounded-xl border border-slate-200 bg-white p-1 shadow-sm" role="tablist" aria-label="Vista">
@@ -165,9 +167,31 @@ export default async function AttendancePage(props: PageProps<"/dashboard">) {
   );
 }
 
-function Stat({ label, value, tone }: { label: string; value: number | string; tone?: "red" | "yellow" }) {
+function Stat({
+  label,
+  value,
+  tone,
+  signed,
+}: {
+  label: string;
+  value: number | string;
+  tone?: "red" | "yellow";
+  /** Para valores con signo (suplementarias): verde si es a favor, rojo si debe. */
+  signed?: number;
+}) {
   const n = typeof value === "number" ? value : 0;
-  const color = tone === "red" && n > 0 ? "text-red-600" : tone === "yellow" && n > 0 ? "text-amber-600" : "text-slate-900";
+  const color =
+    signed !== undefined
+      ? signed > 0
+        ? "text-emerald-700"
+        : signed < 0
+          ? "text-red-600"
+          : "text-slate-900"
+      : tone === "red" && n > 0
+        ? "text-red-600"
+        : tone === "yellow" && n > 0
+          ? "text-amber-600"
+          : "text-slate-900";
   return (
     <div className="card px-4 py-3">
       <p className="text-xs font-medium tracking-wide text-slate-500 uppercase">{label}</p>

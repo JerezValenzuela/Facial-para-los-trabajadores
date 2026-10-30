@@ -132,6 +132,7 @@ Las migraciones están versionadas en `supabase/migrations/` y **ya están aplic
 | `…0012_dias_sin_almuerzo.sql` | `employees.no_lunch_days`: días sin almuerzo (media jornada), por defecto sábado |
 | `…0013_sin_almuerzo_si_entra_tarde.sql` | Configuración: `no_lunch_after_time` (12:30): si entra desde esa hora ya viene almorzado |
 | `…0014_cierre_del_dia.sql` | Configuración: `day_close_time` (18:30): desde esa hora el día de hoy se calcula como terminado |
+| `…0017_tolerancias_por_fecha.sql` | Tabla `tolerance_periods`: tolerancias de entrada/almuerzo con fecha de vigencia (10/10 hasta el 29/10/2026; 5/5 desde el 30/10/2026) |
 | `…0016_salida_asumida_media_jornada.sql` | Configuración: `half_day_exit_time` (13:00): salida asumida en media jornada (sábado) |
 | `…0015_orden_obligatorio.sql` | `kiosk_register_attendance` con orden obligatorio (sin saltarse pasos; sábado/entrada desde 12:30 sin almuerzo) |
 
@@ -243,7 +244,7 @@ Todas se editan en **Dashboard → Configuración** (tabla `settings`):
 
 | Regla | Valor inicial | Fórmula |
 |---|---|---|
-| Tolerancia de entrada | 7 min | **Atraso** = entrada real − horario del empleado − tolerancia (mín. 0) |
+| Tolerancia de entrada | 5 min (desde 30/10/2026; antes 10) | **Atraso** = entrada real − horario del empleado − tolerancia (mín. 0): 7:05 no cuenta, 7:06 = 1 min. Cambiarla en Configuración vale **desde ese día** (los días anteriores usan la que tenían) |
 | Almuerzo permitido | 60 min | **Exceso** = duración real del almuerzo − permitido (mín. 0) |
 | Horas trabajadas | — | (salida final − entrada) − duración del almuerzo |
 | Cooldown entre marcaciones | 60 s | Rechaza marcaciones del mismo empleado antes de ese tiempo |
@@ -252,10 +253,11 @@ Todas se editan en **Dashboard → Configuración** (tabla `settings`):
 | Observaciones | 1 por empleado y día | Botón **+** junto a la fecha en Asistencia: escribir, editar o borrar lo que pasó ese día. Salen en la tabla, en el detalle del día, con “Solo novedades” y en la columna **Observaciones** del Excel |
 | Días sin almuerzo | sábado (por empleado) | En la ficha: “¿Qué días NO sale al almuerzo?”. Esos días con Entrar + Salir el día queda **Completo** y Horas = salida − entrada. No se asume salida a las 17:00 esos días |
 | Entró ya almorzado | desde 12:30 | Si entra a las 12:30 o después (sin marcar almuerzo), ese día no se pide ni descuenta almuerzo: Entrar 13:09 + Salir 17:29 = **4 h 20**, Completo (el atraso de entrada se mantiene). Se cambia en Configuración |
-| Tolerancia de almuerzo | 10 min | El exceso empieza después de *permitido + tolerancia*: volver a 1 h 10 no cuenta; a 1 h 12 son **2 min** de exceso (rojo) |
+| Tolerancia de almuerzo | 5 min (desde 30/10/2026; antes 10) | El exceso empieza después de *permitido + tolerancia*: volver a 1 h 05 no cuenta; a 1 h 06 es **1 min** de exceso (rojo). También vale desde el día en que se cambia |
 | Cierre del día | 18:30 | Desde esa hora, HOY se calcula como día terminado: deja de salir “En curso” y se aplican las reglas de “No marcó bien”. Se cambia en Configuración |
 | No marcó bien | automático | En un día ya terminado (o hoy después del cierre) con “Entrar”: sin “Salir” → se cuenta hasta las **17:00**; sin almuerzo marcado (o a medias) → se descuenta **1 h** de almuerzo. Si salió al almuerzo y no volvió a marcar → solo se cuentan sus horas **hasta el almuerzo**. El día sigue en amarillo “Incompleto” y los valores asumidos salen en gris con *. Si marca más tarde, se cuenta la hora real. En media jornada (sábado de 7:00 a 13:00, sin almuerzo) la salida asumida es la **13:00** (Configuración) |
 | Horas trabajadas | reales | (salida − entrada) − almuerzo tomado: es lo que se paga. **Minutos perdidos** = atraso + exceso de almuerzo; ya están fuera de las horas reales (informativo, no se restan otra vez) |
+| Horas suplementarias | lunes a viernes | Por día = tiempo contable − **8 h** (jornada legal): cuenta desde su hora de entrada (llegar antes **no** suma), resta el atraso y el exceso de almuerzo pasada la tolerancia, suma quedarse después de la salida y resta irse antes y los permisos. Negativo = debe tiempo. Sábados no aplica (horas extra, aparte). Columna “Suplementarias” en Asistencia (con total), en el resumen, en el detalle del día y en el Excel (minutos con signo, sumados al final) |
 | Resumen por empleado | dashboard + Excel | Botón “Resumen por empleado”: días trabajados, faltas, permisos, días que no marcó bien, días sin horas, **horas marcadas**, **horas asumidas** (de días mal marcados), **total de horas**, minutos perdidos y fila TOTAL. Para no pagar los días mal marcados, se pagan solo las horas marcadas. El Excel trae la hoja “Resumen por empleado” y una fila TOTAL en la hoja diaria |
 | Vista del dashboard | hoy | Al entrar se ve solo el día de hoy; para más días: filtros o “Ver rápido” (Ayer, Últimos 7 / 30 días, Este mes, Mes pasado) |
 | Umbral facial | 0.50 | Distancia euclidiana máxima. Menor es más estricto. Si 2 empleados quedan bajo el umbral, se rechaza por ambigüedad |

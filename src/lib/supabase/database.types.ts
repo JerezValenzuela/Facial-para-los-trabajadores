@@ -584,6 +584,30 @@ export type Database = {
           },
         ]
       }
+      tolerance_periods: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          entry_tolerance_minutes: number
+          lunch_tolerance_minutes: number
+          starts_on: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          entry_tolerance_minutes: number
+          lunch_tolerance_minutes: number
+          starts_on: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          entry_tolerance_minutes?: number
+          lunch_tolerance_minutes?: number
+          starts_on?: string
+        }
+        Relationships: []
+      }
       rate_limits: {
         Row: {
           hits: number

@@ -3,6 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/supabase/database.types";
 import { DEFAULT_SETTINGS } from "@/lib/settings";
 import { todayInTz } from "@/lib/time";
+import type { TolerancePeriod } from "./tolerance";
 import { buildDailyReport, type ReportEvent, type ReportObservation, type ReportPermission, type ReportRow } from "./calc";
 import type { ReportFilters } from "./filters";
 
@@ -20,6 +21,8 @@ export type ReportData = {
     no_lunch_after_time: string;
     day_close_time: string;
   };
+  /** Tolerancias con fecha de vigencia (para encabezados del dashboard y Excel). */
+  tolerancePeriods: TolerancePeriod[];
   totals: { rows: number; late: number; lunchExcess: number; incomplete: number; permissions: number };
 };
 
@@ -39,7 +42,7 @@ export async function loadReport(
   if (filters.branchId) empQuery = empQuery.eq("branch_id", filters.branchId);
   if (filters.employeeId) empQuery = empQuery.eq("id", filters.employeeId);
 
-  const [{ data: settingsRow }, { data: branches }, { data: employees }, { data: allEmployees }] = await Promise.all([
+  const [{ data: settingsRow }, { data: branches }, { data: employees }, { data: allEmployees }, { data: periods }] = await Promise.all([
     supabase
       .from("settings")
       .select("entry_tolerance_minutes, lunch_allowed_minutes, lunch_tolerance_minutes, default_exit_time, half_day_exit_time, no_lunch_after_time, day_close_time")
@@ -48,7 +51,9 @@ export async function loadReport(
     supabase.from("branches").select("id, name").order("name"),
     empQuery,
     supabase.from("employees").select("id, full_name, branch_id, active").order("full_name"),
+    supabase.from("tolerance_periods").select("starts_on, entry_tolerance_minutes, lunch_tolerance_minutes").order("starts_on"),
   ]);
+  const tolerancePeriods = periods ?? [];
 
   const settings = settingsRow ?? {
     entry_tolerance_minutes: DEFAULT_SETTINGS.entry_tolerance_minutes,
@@ -116,6 +121,7 @@ export async function loadReport(
     halfDayExitTime: settings.half_day_exit_time,
     lunchCutoffTime: settings.no_lunch_after_time,
     dayCloseTime: settings.day_close_time,
+    tolerancePeriods,
   });
   if (filters.onlyIssues) {
     rows = rows.filter(
@@ -129,6 +135,7 @@ export async function loadReport(
     employees: allEmployees ?? [],
     branchName: new Map((branches ?? []).map((b) => [b.id, b.name])),
     settings,
+    tolerancePeriods,
     totals: {
       rows: rows.length,
       late: rows.filter((r) => r.lateMinutes > 0).length,

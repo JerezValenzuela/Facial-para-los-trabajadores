@@ -172,6 +172,13 @@ export function formatMinutes(total: number | null | undefined): string {
   return `${sign}${h} h ${pad(m)} min`;
 }
 
+/** Con signo, para horas suplementarias: 60 → "+1 h 00 min", -20 → "−20 min", 0 → "0 min". */
+export function formatSignedMinutes(total: number | null | undefined): string {
+  if (total === null || total === undefined) return "—";
+  if (total === 0) return "0 min";
+  return `${total > 0 ? "+" : "−"}${formatMinutes(Math.abs(total))}`;
+}
+
 /** 60 → "1 hora", 120 → "2 horas", 90 → "1 h 30 min", 45 → "45 min" (para mensajes al empleado). */
 export function formatDurationWords(total: number): string {
   const h = Math.floor(total / 60);

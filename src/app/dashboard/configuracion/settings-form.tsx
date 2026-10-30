@@ -88,11 +88,11 @@ export function SettingsForm({ values }: { values: SettingsValues }) {
     <form action={action} className="space-y-6">
       <Section title="Reglas de asistencia">
         <NumberField name="entry_tolerance_minutes" label="Tolerancia de entrada (min)" value={values.entry_tolerance_minutes} min={0} max={120}
-          help="Atraso = entrada real − horario − tolerancia." error={fe?.entry_tolerance_minutes} />
+          help="Atraso = entrada real − horario − tolerancia. Al cambiarla, vale desde hoy (los días anteriores no se recalculan)." error={fe?.entry_tolerance_minutes} />
         <NumberField name="lunch_allowed_minutes" label="Almuerzo permitido (min)" value={values.lunch_allowed_minutes} min={10} max={240}
           help="Exceso = duración real − permitido − tolerancia de almuerzo." error={fe?.lunch_allowed_minutes} />
         <NumberField name="lunch_tolerance_minutes" label="Tolerancia de almuerzo (min)" value={values.lunch_tolerance_minutes} min={0} max={60}
-          help="Ej.: 60 + 10 → hasta 1 h 10 no cuenta; volver a 1 h 12 son 2 min de exceso." error={fe?.lunch_tolerance_minutes} />
+          help="Ej.: 60 + 5 → hasta 1 h 05 no cuenta; volver a 1 h 06 es 1 min de exceso. Al cambiarla, vale desde hoy." error={fe?.lunch_tolerance_minutes} />
         <div>
           <label className="label" htmlFor="default_exit_time">Salida si olvidan marcar</label>
           <input

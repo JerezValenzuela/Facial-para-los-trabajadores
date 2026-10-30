@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useState, useTransition } from "react";
 import { STATUS_LABEL, summarizeByEmployee, type ReportRow } from "@/lib/attendance/calc";
 import { formatPermission } from "@/lib/attendance/permissions";
-import { formatDateLabel, formatMinutes, formatTime } from "@/lib/time";
+import { formatDateLabel, formatMinutes, formatSignedMinutes, formatTime } from "@/lib/time";
 import { Badge } from "@/components/ui";
 import { getDayEvidenceAction, type DayEvidence, type EvidenceItem } from "./evidence-actions";
 import { saveObservationAction } from "./observation-actions";
@@ -55,7 +55,7 @@ export function AttendanceTable({
               <th className="th">Exceso alm.</th>
               <th className="th">Atraso</th>
               <th className="th">Horas trab.</th>
-              <th className="th">Permiso</th>
+              <th className="th" title="Lunes a viernes: tiempo contable − 8 h. Negativo = debe tiempo.">Suplementarias</th>
               <th className="th">Estado</th>
               <th className="th">Fotos</th>
             </tr>
@@ -83,7 +83,10 @@ export function AttendanceTable({
               <td className={`td ${total.lunchExcessMinutes ? "text-red-600" : "text-slate-400"}`}>{total.lunchExcessMinutes} min</td>
               <td className={`td ${total.lateMinutes ? "text-red-600" : "text-slate-400"}`}>{total.lateMinutes} min</td>
               <td className="td whitespace-nowrap">{formatMinutes(total.workedMinutes)}</td>
-              <td className="td" colSpan={3} />
+              <td className={`td whitespace-nowrap ${supplementaryTone(total.supplementaryMinutes)}`}>
+                {formatSignedMinutes(total.supplementaryMinutes)}
+              </td>
+              <td className="td" colSpan={2} />
             </tr>
           </tfoot>
         </table>
@@ -226,8 +229,18 @@ function Row({
           formatMinutes(r.workedMinutes)
         )}
       </td>
-      <td className="td text-xs">
-        {r.permission ? <Badge tone="blue">{formatPermission(r.permission)}</Badge> : <span className="text-slate-400">—</span>}
+      <td className="td whitespace-nowrap">
+        {r.supplementaryMinutes === null ? (
+          <span className="text-slate-400">—</span>
+        ) : (
+          <span
+            className={`font-semibold ${supplementaryTone(r.supplementaryMinutes)} ${r.supplementaryAssumed ? "italic opacity-80" : ""}`}
+            title={r.supplementaryAssumed ? "Calculado con salida o almuerzo asumidos (no marcó bien)" : undefined}
+          >
+            {formatSignedMinutes(r.supplementaryMinutes)}
+            {r.supplementaryAssumed ? "*" : ""}
+          </span>
+        )}
       </td>
       <td className="td">
         <Badge
@@ -243,6 +256,9 @@ function Row({
         >
           {STATUS_LABEL[r.status]}
         </Badge>
+        {r.permission && r.status !== "permiso" && (
+          <span className="mt-1 block text-xs text-sky-700">Permiso: {formatPermission(r.permission)}</span>
+        )}
       </td>
       <td className="td">{hasMarks ? <span className="text-brand-700">📷 Ver</span> : <span className="text-slate-400">—</span>}</td>
     </tr>
@@ -508,4 +524,10 @@ function EvidenceModal({ selected, onClose }: { selected: Selected; onClose: () 
       </div>
     </div>
   );
+}
+
+/** Verde si son horas a favor, rojo si debe tiempo. */
+function supplementaryTone(minutes: number | null): string {
+  if (!minutes) return "text-slate-500";
+  return minutes > 0 ? "text-emerald-700" : "text-red-600";
 }

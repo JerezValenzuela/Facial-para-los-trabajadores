@@ -7,6 +7,7 @@ import { settingsSchema } from "@/lib/validation";
 import { friendlyDbError } from "@/lib/db-errors";
 import { invalidateSettingsCache } from "@/lib/settings";
 import { logError } from "@/lib/log";
+import { todayInTz } from "@/lib/time";
 
 export async function updateSettingsAction(_prev: ActionResult, formData: FormData): Promise<ActionResult> {
   try {
@@ -40,6 +41,24 @@ export async function updateSettingsAction(_prev: ActionResult, formData: FormDa
     const { data: before } = await supabase.from("settings").select("*").eq("id", 1).maybeSingle();
     const { error } = await supabase.from("settings").update(data).eq("id", 1);
     if (error) return { ok: false, error: friendlyDbError(error) };
+
+    // Las tolerancias valen DESDE HOY: se guarda un periodo con fecha de inicio,
+    // así los días anteriores se siguen calculando con la tolerancia que tenían.
+    if (
+      before &&
+      (before.entry_tolerance_minutes !== parsed.data.entry_tolerance_minutes ||
+        before.lunch_tolerance_minutes !== parsed.data.lunch_tolerance_minutes)
+    ) {
+      const { error: tolError } = await supabase.from("tolerance_periods").upsert(
+        {
+          starts_on: todayInTz(),
+          entry_tolerance_minutes: parsed.data.entry_tolerance_minutes,
+          lunch_tolerance_minutes: parsed.data.lunch_tolerance_minutes,
+        },
+        { onConflict: "starts_on" },
+      );
+      if (tolError) logError("configuracion-tolerancias", tolError);
+    }
 
     // Auditoría: solo los campos que cambiaron.
     const changes: Record<string, { antes: unknown; despues: unknown }> = {};

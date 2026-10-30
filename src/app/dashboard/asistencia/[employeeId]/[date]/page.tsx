@@ -4,10 +4,11 @@ import { notFound } from "next/navigation";
 import { requireAdminSession } from "@/lib/auth";
 import { uuid } from "@/lib/validation";
 import { EVENT_LABEL, EVENT_ORDER } from "@/lib/attendance/events";
-import { STATUS_LABEL, summarizeDay } from "@/lib/attendance/calc";
+import { computeSupplementary, STATUS_LABEL, summarizeDay, type DayRules } from "@/lib/attendance/calc";
+import { toleranceFor } from "@/lib/attendance/tolerance";
 import { entryTimeFor, hasLunch, scheduleFromRow, worksOn } from "@/lib/attendance/schedule";
 import { signedEvidenceUrls } from "@/lib/evidence";
-import { formatDateLabel, formatMinutes, formatTime, isValidDateStr, todayInTz } from "@/lib/time";
+import { formatDateLabel, formatMinutes, formatSignedMinutes, formatTime, isValidDateStr, todayInTz } from "@/lib/time";
 import { Badge, Notice, PageHeader } from "@/components/ui";
 
 export const metadata: Metadata = { title: "Detalle del día" };
@@ -18,7 +19,8 @@ export default async function DayDetailPage(props: PageProps<"/dashboard/asisten
   if (!uuid.safeParse(employeeId).success || !isValidDateStr(date)) notFound();
 
   const { supabase } = await requireAdminSession();
-  const [{ data: emp }, { data: events }, { data: settings }, { data: branches }, { data: observation }] = await Promise.all([
+  const [{ data: emp }, { data: events }, { data: settings }, { data: branches }, { data: observation }, { data: periods }, { data: perm }] =
+    await Promise.all([
     supabase.from("employees").select("id, full_name, entry_time, work_days, entry_times, no_lunch_days, branch_id").eq("id", employeeId).maybeSingle(),
     supabase
       .from("attendance_events")
@@ -33,29 +35,34 @@ export default async function DayDetailPage(props: PageProps<"/dashboard/asisten
       .maybeSingle(),
     supabase.from("branches").select("id, name"),
     supabase.from("observations").select("note").eq("employee_id", employeeId).eq("work_date", date).maybeSingle(),
+    supabase.from("tolerance_periods").select("starts_on, entry_tolerance_minutes, lunch_tolerance_minutes"),
+    supabase.from("permissions").select("kind, start_time, hours").eq("employee_id", employeeId).eq("work_date", date).maybeSingle(),
   ]);
   if (!emp) notFound();
 
   const schedule = scheduleFromRow(emp);
   const workDay = worksOn(schedule, date);
   const byType = Object.fromEntries((events ?? []).map((e) => [e.event_type, new Date(e.occurred_at)]));
-  const summary = summarizeDay(
-    date,
-    byType,
-    {
+  // Tolerancias que regían ESE día (no las de hoy).
+  const tol = toleranceFor(periods, date, {
+    entry: settings?.entry_tolerance_minutes ?? 5,
+    lunch: settings?.lunch_tolerance_minutes ?? 5,
+  });
+  const rules: DayRules = {
       entryTime: entryTimeFor(schedule, date),
-      toleranceMinutes: settings?.entry_tolerance_minutes ?? 7,
+      toleranceMinutes: tol.entry,
       lunchAllowedMinutes: settings?.lunch_allowed_minutes ?? 60,
-      lunchToleranceMinutes: settings?.lunch_tolerance_minutes ?? 10,
+      lunchToleranceMinutes: tol.lunch,
       assumedExitTime: settings?.default_exit_time ?? "17:00",
       halfDayExitTime: settings?.half_day_exit_time ?? "13:00",
       lunchCutoffTime: settings?.no_lunch_after_time ?? "12:30",
       dayCloseTime: settings?.day_close_time ?? "18:30",
       lunchExpected: hasLunch(schedule, date),
-    },
-    { today: todayInTz(), now: new Date() },
-  );
+  };
+  const permission = perm ? { kind: perm.kind, startTime: perm.start_time, hours: perm.hours } : null;
+  const summary = summarizeDay(date, byType, rules, { today: todayInTz(), now: new Date() }, permission);
   if (!workDay) summary.lateMinutes = 0; // día libre: no hay hora esperada
+  const supplementary = workDay ? computeSupplementary(date, summary, rules) : null;
   // URLs firmadas de 5 minutos: las miniaturas nunca son públicas.
   const urls = await signedEvidenceUrls((events ?? []).map((e) => e.evidence_path ?? "").filter(Boolean));
   const branchName = new Map((branches ?? []).map((b) => [b.id, b.name]));
@@ -68,7 +75,7 @@ export default async function DayDetailPage(props: PageProps<"/dashboard/asisten
         description={`${formatDateLabel(date)} · ${workDay ? `Horario de entrada ${entryTimeFor(schedule, date)}` : "Día libre (no le tocaba trabajar)"}`}
       />
 
-      <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-5">
+      <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-6">
         <Info label="Estado" value={<Badge tone={summary.status === "completo" ? "green" : "yellow"}>{STATUS_LABEL[summary.status]}</Badge>} />
         <Info label="Atraso" value={summary.lateMinutes ? <b className="text-red-600">{summary.lateMinutes} min</b> : "0"} />
         <Info label="Almuerzo" value={summary.lunchMinutes === null ? "—" : formatMinutes(summary.lunchMinutes)} />
@@ -95,6 +102,18 @@ export default async function DayDetailPage(props: PageProps<"/dashboard/asisten
                   </span>
                 )}
               </>
+            )
+          }
+        />
+        <Info
+          label="Suplementarias"
+          value={
+            supplementary === null ? (
+              <span className="text-slate-400">—</span>
+            ) : (
+              <b className={supplementary > 0 ? "text-emerald-700" : supplementary < 0 ? "text-red-600" : ""}>
+                {formatSignedMinutes(supplementary)}
+              </b>
             )
           }
         />

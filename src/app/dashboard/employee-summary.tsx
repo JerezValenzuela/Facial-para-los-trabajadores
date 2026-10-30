@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { EmployeeTotals, TotalsRow } from "@/lib/attendance/calc";
-import { formatMinutes } from "@/lib/time";
+import { formatMinutes, formatSignedMinutes } from "@/lib/time";
 
 /**
  * Vista "Resumen por empleado": una fila por empleado con el total del período.
@@ -41,6 +41,9 @@ export function EmployeeSummaryTable({
               <th className="th text-right">Horas marcadas</th>
               <th className="th text-right" title="Horas de los días que no marcó bien">Horas asumidas</th>
               <th className="th text-right">Total horas</th>
+              <th className="th text-right" title="Lunes a viernes: tiempo contable − 8 h por día (suma neta). Negativo = debe tiempo.">
+                Suplementarias
+              </th>
               <th className="th text-right">Atraso entrada</th>
               <th className="th text-right">Exceso almuerzo</th>
               <th className="th text-right">Minutos perdidos</th>
@@ -76,6 +79,11 @@ export function EmployeeSummaryTable({
           <b>Total horas</b> = las dos juntas. Si decides no pagar los días mal marcados, paga solo las <b>horas marcadas</b>.
         </li>
         <li>
+          <b>Suplementarias</b> (lunes a viernes) = tiempo contable de cada día − 8 h: llegar antes no suma; el atraso y el
+          exceso de almuerzo (pasada la tolerancia) restan; quedarse más tarde suma; los permisos restan. Es la suma neta del
+          período: <span className="text-emerald-700">positivo</span> = horas a favor, <span className="text-red-600">negativo</span> = debe tiempo.
+        </li>
+        <li>
           <b>Minutos perdidos</b> = atraso de entrada + exceso de almuerzo. Ya están fuera de las horas reales: son
           informativos, no se restan otra vez.
         </li>
@@ -105,6 +113,13 @@ function Cells({ t, bold }: { t: TotalsRow; bold?: boolean }) {
         {formatMinutes(t.assumedMinutes)}
       </td>
       <td className="td text-right text-base font-bold whitespace-nowrap text-slate-900">{formatMinutes(t.workedMinutes)}</td>
+      <td
+        className={`td text-right text-base font-bold whitespace-nowrap ${
+          t.supplementaryMinutes > 0 ? "text-emerald-700" : t.supplementaryMinutes < 0 ? "text-red-600" : "text-slate-400"
+        }`}
+      >
+        {formatSignedMinutes(t.supplementaryMinutes)}
+      </td>
       <td className={`td text-right whitespace-nowrap ${strong} ${t.lateMinutes ? "text-red-600" : "text-slate-400"}`}>
         {t.lateMinutes} min
       </td>

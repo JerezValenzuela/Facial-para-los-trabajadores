@@ -58,6 +58,7 @@ describe("exportación a Excel", () => {
       employees: [{ id: "e1", full_name: "Ana Pérez", branch_id: "b1", active: true }],
       branchName: new Map([["b1", "Pucará"]]),
       settings: { entry_tolerance_minutes: 7, lunch_allowed_minutes: 60, lunch_tolerance_minutes: 0, default_exit_time: "17:00:00", half_day_exit_time: "13:00:00", no_lunch_after_time: "12:30:00", day_close_time: "18:30:00" },
+      tolerancePeriods: [],
       totals: { rows: rows.length, late: 1, lunchExcess: 1, incomplete: 1, permissions: 0 },
     };
     const jpeg = Buffer.from(
@@ -81,16 +82,22 @@ describe("exportación a Excel", () => {
     // Fila 5 = 2026-10-02 (incompleto, amarilla); fila 6 = 2026-10-01 (atraso + exceso, roja)
     const yellow = ws.getRow(5);
     const red = ws.getRow(6);
-    expect(ws.getRow(4).getCell(16).value).toBe("Permiso");
-    expect(ws.getRow(4).getCell(17).value).toBe("Estado");
-    expect(ws.getRow(4).getCell(18).value).toBe("Foto");
-    expect(ws.getRow(4).getCell(19).value).toBe("Observaciones");
-    expect(red.getCell(19).value).toBe("Llegó tarde porque falló el bus");
-    expect(red.getCell(19).alignment?.wrapText).toBe(true);
-    expect(yellow.getCell(19).value ?? null).toBeNull();
+    expect(ws.getRow(4).getCell(16).value).toBe("Horas suplementarias (min)");
+    expect(ws.getRow(4).getCell(17).value).toBe("Permiso");
+    expect(ws.getRow(4).getCell(18).value).toBe("Estado");
+    expect(ws.getRow(4).getCell(19).value).toBe("Foto");
+    expect(ws.getRow(4).getCell(20).value).toBe("Observaciones");
+    expect(red.getCell(20).value).toBe("Llegó tarde porque falló el bus");
+    expect(red.getCell(20).alignment?.wrapText).toBe(true);
+    expect(yellow.getCell(20).value ?? null).toBeNull();
+    // Suplementarias del jueves 01: entra 08:20 (13 de atraso con 7 de tolerancia → cuenta desde 08:13),
+    // almuerzo 70 min, sale 18:00 → 9 h 47 − 70 min = 8 h 37 → +37 min sobre las 8 h legales.
+    expect(red.getCell(16).value).toBe(37);
+    expect(red.getCell(16).numFmt).toBe('+0" min";-0" min";0" min"');
+    expect(yellow.getCell(16).value ?? null).toBeNull(); // viernes 02 sin horas calculables
     expect(ws.getRow(4).getCell(11).value).toBe("Almuerzo permitido");
     expect(ws.getRow(4).getCell(12).value).toBe("Almuerzo tomado");
-    expect(yellow.getCell(17).value).toBe("Incompleto");
+    expect(yellow.getCell(18).value).toBe("Incompleto");
     expect((yellow.getCell(1).fill as ExcelJS.FillPattern).fgColor?.argb).toBe("FFFEF3C7");
     expect((red.getCell(1).fill as ExcelJS.FillPattern).fgColor?.argb).toBe("FFFDE2E2");
     expect(red.getCell(13).value).toBe(10); // exceso de almuerzo
@@ -107,7 +114,7 @@ describe("exportación a Excel", () => {
     // Foto incrustada al lado del Estado, en la fila roja (6); la amarilla no tiene foto.
     const images = ws.getImages();
     expect(images).toHaveLength(1);
-    expect(Math.floor(images[0].range.tl.nativeCol)).toBe(17);
+    expect(Math.floor(images[0].range.tl.nativeCol)).toBe(18);
     expect(Math.floor(images[0].range.tl.nativeRow)).toBe(5);
     expect(red.height).toBeGreaterThan(40);
 
@@ -116,6 +123,8 @@ describe("exportación a Excel", () => {
     expect(totalRow.getCell(2).value).toBe("TOTAL (2 filas)");
     expect(totalRow.getCell(13).value).toBe(10);
     expect(totalRow.getCell(14).value).toBe(13);
+    expect(totalRow.getCell(16).value).toBe(37); // suplementarias sumadas
+    expect(totalRow.getCell(17).value).toBe("+37 min"); // y en horas, al lado
     const totalWorked = totalRow.getCell(15).value as Date; // 08:20→18:00 menos 70 min de almuerzo = 8 h 30
     expect([totalWorked.getUTCHours(), totalWorked.getUTCMinutes()]).toEqual([8, 30]);
 
@@ -129,6 +138,8 @@ describe("exportación a Excel", () => {
     expect(summary.getRow(2).getCell(c("Exceso almuerzo (min)")).value).toBe(10);
     expect(summary.getRow(2).getCell(c("Minutos perdidos (total)")).value).toBe(23);
     expect(summary.getRow(2).getCell(c("Días sin horas (revisar)")).value).toBe(1); // el 02 solo tiene entrada
+    expect(summary.getRow(2).getCell(c("Suplementarias (min)")).value).toBe(37);
+    expect(summary.getRow(2).getCell(c("Suplementarias (horas)")).value).toBe("+37 min");
     expect(summary.getRow(3).getCell(1).value).toBe("TOTAL");
     expect(wb.views[0]?.activeTab).toBe(1);
   });

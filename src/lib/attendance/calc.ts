@@ -39,13 +39,17 @@
  * Horario por empleado (ver schedule.ts): solo aparecen sus días de trabajo.
  * Si marca en un día libre, la fila sale como "Día libre" y sin atraso.
  *
+ * Horas suplementarias (lunes a viernes) = tiempo contable − 8 h (ver
+ * computeSupplementary). Tolerancias con fecha de vigencia (tolerance.ts).
+ *
  * Todos los minutos son minutos COMPLETOS (se truncan los segundos).
  * Las fechas de calendario están en America/Guayaquil.
  */
-import { dateInTz, dateRange, minutesBetween, zonedToUtc } from "@/lib/time";
+import { dateInTz, dateRange, isoWeekday, minutesBetween, zonedToUtc } from "@/lib/time";
 import type { AttendanceEventType } from "./events";
 import type { DayPermission } from "./permissions";
 import { entryTimeFor, hasLunch, scheduleFromRow, worksOn } from "./schedule";
+import { toleranceFor, type TolerancePeriod } from "./tolerance";
 
 export type DayRules = {
   entryTime: string; // "08:00" o "08:00:00"
@@ -249,6 +253,54 @@ export function summarizeDay(
 }
 
 // ---------------------------------------------------------------------------
+// Horas suplementarias (lunes a viernes)
+// ---------------------------------------------------------------------------
+/** Jornada legal diaria en Ecuador (Código del Trabajo): 8 horas. */
+export const LEGAL_DAILY_MINUTES = 480;
+
+/**
+ * HORAS SUPLEMENTARIAS del día (solo lunes a viernes) = tiempo contable − 8 h.
+ *  - Entrada: cuenta desde su hora de entrada. Llegar antes NO suma; dentro de
+ *    la tolerancia no resta; pasado ese margen resta el atraso (7:06 con 5 min
+ *    de tolerancia = 1 min).
+ *  - Almuerzo: cuenta el permitido (1 h) + el exceso que pase la tolerancia
+ *    (1 h 05 no resta; 1 h 06 resta 1 min). Sin almuerzo marcado: 1 h asumida;
+ *    media jornada / entró ya almorzado / se fue antes del almuerzo: 0.
+ *  - Salida: la real (o la asumida si olvidó marcar). Quedarse más tarde suma;
+ *    irse antes resta. Si salió al almuerzo y no volvió: hasta el almuerzo.
+ *  - Permiso por horas: el tiempo de permiso dentro de la jornada resta.
+ * Negativo = el empleado debe ese tiempo. Sábado y domingo (horas extra, aparte),
+ * faltas y días sin horas calculables → null.
+ */
+export function computeSupplementary(date: string, s: DaySummary, rules: DayRules): number | null {
+  if (isoWeekday(date) > 5) return null;
+  if (!s.entrada || s.workedMinutes === null) return null;
+  const exit = s.leftAtLunch ? s.salidaAlmuerzo : (s.salidaFinal ?? s.assumedExit);
+  if (!exit) return null;
+
+  const scheduled = zonedToUtc(date, rules.entryTime);
+  const late = Math.max(0, minutesBetween(scheduled, s.entrada) - rules.toleranceMinutes);
+  const start = new Date(scheduled.getTime() + late * 60000);
+
+  let lunch = 0;
+  if (s.leftAtLunch) lunch = 0;
+  else if (s.salidaAlmuerzo && s.regresoAlmuerzo) lunch = rules.lunchAllowedMinutes + s.lunchExcessMinutes;
+  else if (s.assumedLunch) lunch = rules.lunchAllowedMinutes;
+
+  let minutes = minutesBetween(start, exit) - lunch;
+
+  const p = s.permission;
+  if (p?.kind === "horas" && p.startTime && p.hours) {
+    const pStart = zonedToUtc(date, p.startTime);
+    const pEnd = new Date(pStart.getTime() + Math.round(p.hours * 60) * 60000);
+    const from = pStart > start ? pStart : start;
+    const to = pEnd < exit ? pEnd : exit;
+    if (to > from) minutes -= minutesBetween(from, to);
+  }
+  return minutes - LEGAL_DAILY_MINUTES;
+}
+
+// ---------------------------------------------------------------------------
 // Reporte diario por empleado (dashboard y Excel)
 // ---------------------------------------------------------------------------
 export type ReportEmployee = {
@@ -306,6 +358,10 @@ export type ReportRow = DaySummary & {
   photoPath: string | null;
   /** Observación del administrador para ese día (o null). */
   observation: string | null;
+  /** Horas suplementarias del día en minutos (lunes a viernes; negativo = debe). */
+  supplementaryMinutes: number | null;
+  /** Se calcularon con salida o almuerzo asumidos (no marcó bien). */
+  supplementaryAssumed: boolean;
 };
 
 export function buildDailyReport(input: {
@@ -322,6 +378,8 @@ export function buildDailyReport(input: {
   halfDayExitTime?: string | null;
   lunchCutoffTime?: string | null;
   dayCloseTime?: string | null;
+  /** Tolerancias con fecha de vigencia; sin esto se usan toleranceMinutes / lunchToleranceMinutes. */
+  tolerancePeriods?: TolerancePeriod[];
   permissions?: ReportPermission[];
   observations?: ReportObservation[];
 }): ReportRow[] {
@@ -369,23 +427,23 @@ export function buildDailyReport(input: {
         // Sin marcaciones: solo cuenta en SUS días de trabajo, con el empleado activo y ya registrado.
         if (!emp.active || date < createdDate || !workDay) continue;
       }
-      const summary = summarizeDay(
-        date,
-        events ?? {},
-        {
-          entryTime: entryTimeFor(schedule, date),
-          toleranceMinutes: input.toleranceMinutes,
-          lunchAllowedMinutes: input.lunchAllowedMinutes,
-          lunchToleranceMinutes: input.lunchToleranceMinutes,
-          assumedExitTime: input.assumedExitTime,
-          halfDayExitTime: input.halfDayExitTime,
-          lunchCutoffTime: input.lunchCutoffTime,
-          dayCloseTime: input.dayCloseTime,
-          lunchExpected: hasLunch(schedule, date),
-        },
-        { today: input.today, now: input.now },
-        permission,
-      );
+      // Tolerancias que regían ESE día (cambiarlas no recalcula días anteriores).
+      const tol = toleranceFor(input.tolerancePeriods, date, {
+        entry: input.toleranceMinutes,
+        lunch: input.lunchToleranceMinutes ?? 0,
+      });
+      const rules: DayRules = {
+        entryTime: entryTimeFor(schedule, date),
+        toleranceMinutes: tol.entry,
+        lunchAllowedMinutes: input.lunchAllowedMinutes,
+        lunchToleranceMinutes: tol.lunch,
+        assumedExitTime: input.assumedExitTime,
+        halfDayExitTime: input.halfDayExitTime,
+        lunchCutoffTime: input.lunchCutoffTime,
+        dayCloseTime: input.dayCloseTime,
+        lunchExpected: hasLunch(schedule, date),
+      };
+      const summary = summarizeDay(date, events ?? {}, rules, { today: input.today, now: input.now }, permission);
       if (!workDay) {
         // Día libre: no hay hora de entrada esperada, así que no hay atraso.
         summary.lateMinutes = 0;
@@ -403,6 +461,9 @@ export function buildDailyReport(input: {
         dayOff: !workDay,
         photoPath: photoByKey.get(`${emp.id}|${date}`)?.path ?? null,
         observation,
+        // Solo en sus días de trabajo de lunes a viernes.
+        supplementaryMinutes: workDay ? computeSupplementary(date, summary, rules) : null,
+        supplementaryAssumed: Boolean(summary.assumedExit || summary.assumedLunch),
       });
     }
   }
@@ -447,6 +508,8 @@ export type EmployeeTotals = {
   lunchExcessMinutes: number;
   /** Atraso + exceso de almuerzo (informativo; ya no están en las horas reales). */
   lostMinutes: number;
+  /** Suma NETA de horas suplementarias (lunes a viernes); negativo = debe tiempo. */
+  supplementaryMinutes: number;
 };
 
 export type TotalsRow = Omit<EmployeeTotals, "employeeId" | "employeeName" | "branchId">;
@@ -465,6 +528,7 @@ export function summarizeByEmployee(rows: ReportRow[]): { employees: EmployeeTot
     lateMinutes: 0,
     lunchExcessMinutes: 0,
     lostMinutes: 0,
+    supplementaryMinutes: 0,
   });
   const add = (t: TotalsRow, r: ReportRow) => {
     const excess = r.lunchOngoing ? 0 : r.lunchExcessMinutes;
@@ -481,6 +545,7 @@ export function summarizeByEmployee(rows: ReportRow[]): { employees: EmployeeTot
     t.lateMinutes += r.lateMinutes;
     t.lunchExcessMinutes += excess;
     t.lostMinutes += r.lateMinutes + excess;
+    t.supplementaryMinutes += r.supplementaryMinutes ?? 0;
   };
 
   const byEmployee = new Map<string, EmployeeTotals>();
