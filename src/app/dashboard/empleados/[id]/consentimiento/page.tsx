@@ -22,7 +22,7 @@ export default async function ConsentPrintPage(props: PageProps<"/dashboard/empl
   const branch = (e.branches as { name: string } | null)?.name ?? "";
 
   return (
-    <div className="mx-auto max-w-2xl bg-white p-8 text-[15px] leading-relaxed text-slate-900 print:p-0">
+    <div className="jc-paper mx-auto max-w-2xl bg-white p-8 text-[15px] leading-relaxed text-slate-900 print:p-0">
       <div className="mb-6 flex items-center justify-between print:hidden">
         <p className="text-sm text-slate-500">Vista de impresión</p>
         <PrintButton />

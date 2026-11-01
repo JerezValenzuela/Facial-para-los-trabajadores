@@ -238,15 +238,15 @@ export function EnrollClient({ employeeId, employeeName }: { employeeId: string;
       <div className="space-y-4">
         <div className="card p-4">
           <h2 className="mb-3 font-semibold text-slate-900">Guía de captura</h2>
-          <ol className="space-y-2">
+          <ol className="jc-stagger space-y-2">
             {PROMPTS.map((p, i) => {
               const captured = i < samples.length;
               const current = i === samples.length && !done;
               return (
                 <li
                   key={p.text}
-                  className={`flex items-center gap-3 rounded-lg px-2 py-1.5 text-sm ${
-                    current ? "bg-brand-50 font-medium text-brand-800" : captured ? "text-slate-500" : "text-slate-700"
+                  className={`flex items-center gap-3 rounded-xl border border-transparent px-2.5 py-2 text-[12.5px] ${
+                    current ? "border-brand-200 bg-brand-50 font-medium text-brand-800" : captured ? "text-slate-500" : "text-slate-700"
                   }`}
                 >
                   <span

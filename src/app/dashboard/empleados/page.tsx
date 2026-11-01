@@ -48,7 +48,7 @@ export default async function EmployeesPage(props: PageProps<"/dashboard/emplead
         </div>
       )}
 
-      <form className="card mb-4 flex flex-wrap items-end gap-3 p-4" method="get">
+      <form className="card jc-filters mb-4 flex w-fit max-w-full flex-wrap items-end gap-3" method="get">
         <div>
           <label className="label" htmlFor="sucursal">Sucursal</label>
           <select id="sucursal" name="sucursal" defaultValue={branchFilter} className="input min-w-44">
@@ -74,58 +74,62 @@ export default async function EmployeesPage(props: PageProps<"/dashboard/emplead
           Crea uno con el botón “Nuevo empleado”.
         </EmptyState>
       ) : (
-        <div className="card overflow-x-auto">
-          <table className="min-w-full divide-y divide-slate-200">
-            <thead className="bg-slate-50">
-              <tr>
-                <th className="th">Nombre</th>
-                <th className="th">Cédula</th>
-                <th className="th">Sucursal</th>
-                <th className="th">Cargo</th>
-                <th className="th">Horario</th>
-                <th className="th">Biometría</th>
-                <th className="th">Estado</th>
-                <th className="th text-right">Acciones</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {employees.map((e) => {
-                const status = biometricStatus(e);
-                return (
-                  <tr key={e.id} className="hover:bg-slate-50">
-                    <td className="td font-medium text-slate-900">
-                      <Link href={`/dashboard/empleados/${e.id}`} className="hover:text-brand-700 hover:underline">
-                        {e.full_name}
-                      </Link>
-                    </td>
-                    <td className="td font-mono text-slate-600">{e.cedula}</td>
-                    <td className="td">{branchName.get(e.branch_id) ?? "—"}</td>
-                    <td className="td">{e.position}</td>
-                    <td className="td text-sm whitespace-nowrap">{formatSchedule(scheduleFromRow(e))}</td>
-                    <td className="td">
-                      <Badge tone={status === "enrolado" ? "green" : status === "pendiente" ? "yellow" : "gray"}>
-                        {BIOMETRIC_LABEL[status]}
-                        {status === "enrolado" ? ` (${e.templates})` : ""}
-                      </Badge>
-                    </td>
-                    <td className="td">{e.active ? <Badge tone="green">Activo</Badge> : <Badge>Inactivo</Badge>}</td>
-                    <td className="td text-right">
-                      <div className="flex justify-end gap-2">
-                        <Link href={`/dashboard/empleados/${e.id}`} className="btn-secondary px-3 py-1.5 text-xs">
-                          Editar
-                        </Link>
-                        {e.active && status !== "sin_consentimiento" && (
-                          <Link href={`/dashboard/empleados/${e.id}/enrolar`} className="btn-primary px-3 py-1.5 text-xs">
-                            <IconCamera className="h-4 w-4" /> {status === "enrolado" ? "Re-enrolar" : "Enrolar"}
-                          </Link>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+        <div className="grid gap-3 sm:grid-cols-[repeat(auto-fill,minmax(300px,1fr))]">
+          {employees.map((e) => {
+            const status = biometricStatus(e);
+            const initials = e.full_name
+              .split(/\s+/)
+              .slice(0, 2)
+              .map((w) => w[0]?.toUpperCase() ?? "")
+              .join("");
+            return (
+              <article key={e.id} className="card flex flex-col gap-3 p-4">
+                <div className="flex items-center gap-3">
+                  <span
+                    className="grid h-11 w-11 shrink-0 place-items-center rounded-full border border-slate-300 bg-slate-100 text-[15px] font-medium"
+                    aria-hidden="true"
+                  >
+                    {initials}
+                  </span>
+                  <div className="flex min-w-0 flex-1 flex-col">
+                    <Link
+                      href={`/dashboard/empleados/${e.id}`}
+                      className="truncate text-[15px] font-medium text-slate-900 hover:text-brand-700 hover:underline"
+                    >
+                      {e.full_name}
+                    </Link>
+                    <span className="font-mono text-[11.5px] text-slate-500">{e.cedula}</span>
+                  </div>
+                  {e.active ? <Badge tone="green">Activo</Badge> : <Badge>Inactivo</Badge>}
+                </div>
+                <dl className="grid grid-cols-[auto_1fr] gap-x-3.5 gap-y-1 text-[12.5px]">
+                  <dt className="text-slate-500">Sucursal</dt>
+                  <dd>{branchName.get(e.branch_id) ?? "—"}</dd>
+                  <dt className="text-slate-500">Cargo</dt>
+                  <dd>{e.position}</dd>
+                  <dt className="text-slate-500">Horario</dt>
+                  <dd>{formatSchedule(scheduleFromRow(e))}</dd>
+                  <dt className="text-slate-500">Biometría</dt>
+                  <dd>
+                    <Badge tone={status === "enrolado" ? "green" : status === "pendiente" ? "yellow" : "gray"}>
+                      {BIOMETRIC_LABEL[status]}
+                      {status === "enrolado" ? ` (${e.templates})` : ""}
+                    </Badge>
+                  </dd>
+                </dl>
+                <div className="mt-auto flex justify-end gap-2">
+                  <Link href={`/dashboard/empleados/${e.id}`} className="btn-secondary px-3.5 py-1.5 text-xs">
+                    Editar
+                  </Link>
+                  {e.active && status !== "sin_consentimiento" && (
+                    <Link href={`/dashboard/empleados/${e.id}/enrolar`} className="btn-primary px-3.5 py-1.5 text-xs">
+                      <IconCamera className="h-4 w-4" /> {status === "enrolado" ? "Re-enrolar" : "Enrolar"}
+                    </Link>
+                  )}
+                </div>
+              </article>
+            );
+          })}
         </div>
       )}
     </>

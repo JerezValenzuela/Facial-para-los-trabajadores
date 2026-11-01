@@ -23,9 +23,10 @@ export default async function EnrollPage(props: PageProps<"/dashboard/empleados/
 
   return (
     <div className="mx-auto max-w-5xl">
-      <Link href={`/dashboard/empleados/${e.id}`} className="text-sm text-slate-500 hover:text-slate-700">
+      <Link href={`/dashboard/empleados/${e.id}`} className="jc-back">
         ← {e.full_name}
       </Link>
+      <div className="mt-3" />
       <PageHeader
         title={`Enrolar rostro · ${e.full_name}`}
         description="Se capturan de 3 a 5 muestras. Solo se guarda el vector numérico de cada muestra: ninguna foto sale de este equipo."

@@ -14,7 +14,8 @@ export default async function NewEmployeePage() {
   ]);
   return (
     <div className="mx-auto max-w-2xl">
-      <Link href="/dashboard/empleados" className="text-sm text-slate-500 hover:text-slate-700">← Empleados</Link>
+      <Link href="/dashboard/empleados" className="jc-back">← Empleados</Link>
+      <div className="mt-3" />
       <PageHeader
         title="Nuevo empleado"
         description="Después de crearlo podrás registrar su consentimiento y enrolar su rostro."

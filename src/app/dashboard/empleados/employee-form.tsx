@@ -99,7 +99,7 @@ export function EmployeeForm({
         </div>
       </div>
 
-      <fieldset className="space-y-4 rounded-xl border border-slate-200 bg-slate-50/60 p-4">
+      <fieldset className="space-y-4 rounded-[18px] border border-slate-200 bg-slate-50/60 p-4">
         <legend className="px-1 text-sm font-semibold text-slate-900">Horario de trabajo</legend>
 
         <div>
@@ -110,8 +110,8 @@ export function EmployeeForm({
               return (
                 <label
                   key={d.iso}
-                  className={`flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium transition select-none has-focus-visible:ring-2 has-focus-visible:ring-brand-500 has-focus-visible:ring-offset-1 ${
-                    on ? "border-brand-600 bg-brand-600 text-white" : "border-slate-300 bg-white text-slate-600 hover:border-slate-400"
+                  className={`flex cursor-pointer items-center gap-2 rounded-full border px-3.5 py-1.5 text-sm font-medium transition select-none has-focus-visible:ring-2 has-focus-visible:ring-brand-500 has-focus-visible:ring-offset-1 ${
+                    on ? "border-brand-500 bg-brand-100 text-brand-800" : "border-slate-300 bg-white text-slate-600 hover:border-slate-400"
                   }`}
                 >
                   <input
@@ -142,8 +142,8 @@ export function EmployeeForm({
                 return (
                   <label
                     key={d.iso}
-                    className={`flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium transition select-none has-focus-visible:ring-2 has-focus-visible:ring-brand-500 has-focus-visible:ring-offset-1 ${
-                      on ? "border-sky-600 bg-sky-600 text-white" : "border-slate-300 bg-white text-slate-600 hover:border-slate-400"
+                    className={`flex cursor-pointer items-center gap-2 rounded-full border px-3.5 py-1.5 text-sm font-medium transition select-none has-focus-visible:ring-2 has-focus-visible:ring-brand-500 has-focus-visible:ring-offset-1 ${
+                      on ? "border-sky-700 bg-sky-100 text-sky-800" : "border-slate-300 bg-white text-slate-600 hover:border-slate-400"
                     }`}
                   >
                     <input
