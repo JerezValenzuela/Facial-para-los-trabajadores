@@ -72,7 +72,7 @@ export function EmployeeSummaryTable({
           </tfoot>
         </table>
       </div>
-      <ul className="mt-3 space-y-1 text-xs text-slate-500">
+      <ul className="jc-in-top mt-3 max-w-[1400px] space-y-1.5 rounded-[18px] border border-slate-200 bg-[#0e1c14]/40 px-[18px] py-3.5 text-xs text-pretty text-slate-600 backdrop-blur-xl [&_b]:font-semibold [&_b]:text-[#e9efe9]">
         <li>
           <b>Horas marcadas</b> = días bien marcados (de la entrada a la salida, menos el almuerzo que tomó).{" "}
           <b>Horas asumidas</b> = días que no marcó bien: se cuenta hasta las {defaultExitTime} con 1 h de almuerzo (sábado / media jornada: hasta las {halfDayExitTime}, sin almuerzo).{" "}
@@ -129,7 +129,7 @@ function Cells({ t, bold }: { t: TotalsRow; bold?: boolean }) {
       </td>
       <td className="td text-right whitespace-nowrap">
         {t.lostMinutes ? (
-          <span className="rounded bg-red-600 px-2 py-0.5 text-xs font-bold text-white">{formatMinutes(t.lostMinutes)}</span>
+          <span className="rounded-full bg-red-100 px-2 py-0.5 text-[11.5px] font-medium text-red-700">{formatMinutes(t.lostMinutes)}</span>
         ) : (
           <span className="text-slate-400">0</span>
         )}

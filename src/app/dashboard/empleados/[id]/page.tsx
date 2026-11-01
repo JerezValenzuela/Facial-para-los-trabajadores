@@ -54,17 +54,17 @@ export default async function EmployeeDetailPage(props: PageProps<"/dashboard/em
 
   return (
     <div className="mx-auto max-w-4xl">
-      <Link href="/dashboard/empleados" className="text-sm text-slate-500 hover:text-slate-700">← Empleados</Link>
+      <Link href="/dashboard/empleados" className="jc-back">← Empleados</Link>
       <div className="mt-3 mb-2 flex items-center gap-4">
         {photoUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
             src={photoUrl}
             alt={`Foto de ${e.full_name}`}
-            className="h-28 w-28 rounded-2xl border-4 border-white object-cover shadow-md"
+            className="h-28 w-28 rounded-[22px] border border-slate-300 object-cover shadow-[0_10px_30px_rgba(0,0,0,0.3)]"
           />
         ) : (
-          <div className="flex h-28 w-28 items-center justify-center rounded-2xl bg-slate-200 text-3xl font-bold text-slate-500 shadow-inner">
+          <div className="flex h-28 w-28 items-center justify-center rounded-[22px] border border-slate-300 bg-slate-100 text-3xl font-medium text-slate-600 backdrop-blur-xl">
             {initials}
           </div>
         )}
@@ -132,15 +132,15 @@ export default async function EmployeeDetailPage(props: PageProps<"/dashboard/em
 
         {hasConsent ? (
           <div className="grid gap-3 text-sm sm:grid-cols-3">
-            <div className="rounded-lg bg-slate-50 p-3">
+            <div className="rounded-[14px] border border-slate-200 bg-slate-50 p-3">
               <p className="text-slate-500">Consentimiento registrado</p>
               <p className="font-medium">{formatDateTime(e.consent_at)}</p>
             </div>
-            <div className="rounded-lg bg-slate-50 p-3">
+            <div className="rounded-[14px] border border-slate-200 bg-slate-50 p-3">
               <p className="text-slate-500">Versión del texto</p>
               <p className="font-mono font-medium">{e.consent_version}</p>
             </div>
-            <div className="rounded-lg bg-slate-50 p-3">
+            <div className="rounded-[14px] border border-slate-200 bg-slate-50 p-3">
               <p className="text-slate-500">Plantillas faciales</p>
               <p className="font-medium">{templates} {templates === 1 ? "muestra" : "muestras"}</p>
             </div>
@@ -153,7 +153,7 @@ export default async function EmployeeDetailPage(props: PageProps<"/dashboard/em
                 enrolar se necesita un consentimiento nuevo.
               </Notice>
             )}
-            <div className="max-h-64 overflow-y-auto rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
+            <div className="max-h-64 overflow-y-auto rounded-[14px] border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
               <p className="mb-2 font-semibold">{CONSENT_TITLE}</p>
               {CONSENT_PARAGRAPHS.map((p) => (
                 <p key={p} className="mb-2">{p}</p>
@@ -165,7 +165,7 @@ export default async function EmployeeDetailPage(props: PageProps<"/dashboard/em
         )}
 
         {(templates > 0 || hasConsent) && (
-          <div className="mt-6 rounded-lg border border-red-200 bg-red-50/40 p-4">
+          <div className="mt-6 rounded-[18px] border border-red-200 bg-red-50/40 p-4">
             <h3 className="mb-1 font-semibold text-red-800">Eliminar datos biométricos</h3>
             <p className="mb-3 text-sm text-slate-600">
               Borra de forma permanente las plantillas faciales de este empleado y revoca su consentimiento
@@ -175,7 +175,7 @@ export default async function EmployeeDetailPage(props: PageProps<"/dashboard/em
           </div>
         )}
 
-        <div className="mt-6 rounded-lg border border-red-300 bg-red-50 p-4">
+        <div className="mt-6 rounded-[18px] border border-red-300 bg-red-50 p-4">
           <h3 className="mb-1 font-semibold text-red-800">Eliminar empleado</h3>
           <p className="mb-3 text-sm text-slate-600">
             Borra para siempre a este empleado y todo lo suyo: datos, rostro, marcaciones, permisos, fotos e

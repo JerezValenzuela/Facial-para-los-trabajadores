@@ -10,10 +10,10 @@ export function PageHeader({
   actions?: ReactNode;
 }) {
   return (
-    <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-      <div>
-        <h1 className="text-xl font-semibold text-slate-900 sm:text-2xl">{title}</h1>
-        {description && <p className="mt-1 text-sm text-slate-500">{description}</p>}
+    <div className="jc-in-left mb-4 flex flex-col gap-3 px-1 pt-2 sm:flex-row sm:items-end sm:justify-between">
+      <div className="max-w-[1100px]">
+        <h1 className="text-2xl font-semibold text-slate-900 sm:text-[30px] sm:leading-tight">{title}</h1>
+        {description && <div className="mt-1 text-[12.5px] text-pretty text-slate-500">{description}</div>}
       </div>
       {actions && <div className="flex flex-wrap gap-2">{actions}</div>}
     </div>
@@ -37,7 +37,7 @@ export function Notice({
   children?: ReactNode;
 }) {
   return (
-    <div role={tone === "error" ? "alert" : "status"} className={`rounded-lg border px-4 py-3 text-sm ${noticeStyles[tone]}`}>
+    <div role={tone === "error" ? "alert" : "status"} className={`jc-in-top rounded-[20px] border px-4 py-3 text-sm backdrop-blur-xl ${noticeStyles[tone]}`}>
       {title && <p className="font-semibold">{title}</p>}
       {children && <div className={title ? "mt-1" : ""}>{children}</div>}
     </div>
@@ -46,7 +46,7 @@ export function Notice({
 
 export function EmptyState({ title, children }: { title: string; children?: ReactNode }) {
   return (
-    <div className="rounded-xl border border-dashed border-slate-300 bg-white px-6 py-12 text-center">
+    <div className="jc-in-top rounded-[20px] border border-dashed border-slate-300 bg-white px-6 py-12 text-center backdrop-blur-xl">
       <p className="font-medium text-slate-700">{title}</p>
       {children && <div className="mt-1 text-sm text-slate-500">{children}</div>}
     </div>

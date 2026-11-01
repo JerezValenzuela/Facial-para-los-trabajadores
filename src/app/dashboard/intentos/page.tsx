@@ -58,7 +58,7 @@ export default async function FailedAttemptsPage(props: PageProps<"/dashboard/in
         description="Cada rechazo del kiosco queda registrado con su motivo, IP y (si está habilitado) una miniatura."
       />
 
-      <form method="get" className="card mb-4 flex flex-wrap items-end gap-3 p-4">
+      <form method="get" className="card jc-filters mb-4 flex w-fit max-w-full flex-wrap items-end gap-3">
         <div>
           <label className="label" htmlFor="desde">Desde</label>
           <input id="desde" name="desde" type="date" defaultValue={from} className="input" />
@@ -80,7 +80,7 @@ export default async function FailedAttemptsPage(props: PageProps<"/dashboard/in
       </form>
 
       {counts.size > 0 && (
-        <div className="mb-4 flex flex-wrap gap-2">
+        <div className="jc-stagger mb-4 flex flex-wrap gap-2">
           {[...counts.entries()]
             .sort((a, b) => b[1] - a[1])
             .map(([r, n]) => (

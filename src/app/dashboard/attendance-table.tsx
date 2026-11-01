@@ -201,14 +201,14 @@ function Row({
       </td>
       <td className="td">
         {r.lunchExcessMinutes > 0 ? (
-          <span className="rounded bg-red-600 px-2 py-0.5 text-xs font-bold text-white">+{r.lunchExcessMinutes} min</span>
+          <span className="rounded-full bg-red-100 px-2 py-0.5 text-[11.5px] font-medium text-red-700">+{r.lunchExcessMinutes} min</span>
         ) : (
           <span className="text-slate-400">0</span>
         )}
       </td>
       <td className="td">
         {r.lateMinutes > 0 ? (
-          <span className="rounded bg-red-600 px-2 py-0.5 text-xs font-bold text-white">+{r.lateMinutes} min</span>
+          <span className="rounded-full bg-red-100 px-2 py-0.5 text-[11.5px] font-medium text-red-700">+{r.lateMinutes} min</span>
         ) : (
           <span className="text-slate-400">0</span>
         )}
@@ -306,14 +306,14 @@ function ObservationModal({
   const canSave = !pending && !unchanged && (text.trim() !== "" || initial !== "");
   return (
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-900/60 p-4 sm:p-10"
+      className="fixed inset-0 z-50 flex items-start justify-center jc-overlay overflow-y-auto p-4 sm:p-10"
       role="dialog"
       aria-modal="true"
       aria-label={`Observación de ${target.name}`}
       onClick={onClose}
     >
       <form
-        className="w-full max-w-lg rounded-2xl bg-white shadow-xl"
+        className="jc-modal w-full max-w-lg"
         onClick={(e) => e.stopPropagation()}
         onSubmit={(e) => {
           e.preventDefault();
@@ -327,7 +327,7 @@ function ObservationModal({
               {target.name} · {formatDateLabel(target.date)}
             </p>
           </div>
-          <button type="button" onClick={onClose} className="btn-ghost px-3 text-lg" aria-label="Cerrar">
+          <button type="button" onClick={onClose} className="btn-secondary h-[34px] w-[34px] px-0 text-base" aria-label="Cerrar">
             ✕
           </button>
         </div>
@@ -427,19 +427,19 @@ function EvidenceModal({ selected, onClose }: { selected: Selected; onClose: () 
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-900/60 p-4 sm:p-8"
+      className="fixed inset-0 z-50 flex items-start justify-center jc-overlay overflow-y-auto p-4 sm:p-8"
       role="dialog"
       aria-modal="true"
       aria-label={`Fotos de ${selected.name}`}
       onClick={onClose}
     >
-      <div className="w-full max-w-5xl rounded-2xl bg-white shadow-xl" onClick={(e) => e.stopPropagation()}>
+      <div className="jc-modal w-full max-w-5xl" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-start justify-between gap-4 border-b border-slate-200 px-6 py-4">
           <div>
             <h2 className="text-lg font-semibold text-slate-900">{selected.name}</h2>
             <p className="text-sm text-slate-500">{data?.dateLabel ?? formatDateLabel(selected.date)} · ¿Qué fotos quieres ver?</p>
           </div>
-          <button type="button" onClick={onClose} className="btn-ghost px-3 text-lg" aria-label="Cerrar">
+          <button type="button" onClick={onClose} className="btn-secondary h-[34px] w-[34px] px-0 text-base" aria-label="Cerrar">
             ✕
           </button>
         </div>
@@ -454,9 +454,8 @@ function EvidenceModal({ selected, onClose }: { selected: Selected; onClose: () 
                 type="button"
                 disabled={disabled}
                 onClick={() => setView(t.key)}
-                className={`rounded-full px-4 py-1.5 text-sm font-medium transition ${
-                  view === t.key ? "bg-brand-600 text-white" : "bg-slate-100 text-slate-700 hover:bg-slate-200"
-                } disabled:cursor-not-allowed disabled:opacity-40`}
+                aria-pressed={view === t.key}
+                className="jc-tab border-slate-200 disabled:cursor-not-allowed disabled:opacity-40"
               >
                 {t.label}
                 {item?.time ? ` · ${item.time.slice(0, 5)}` : ""}
@@ -471,7 +470,7 @@ function EvidenceModal({ selected, onClose }: { selected: Selected; onClose: () 
           {data && visible.length === 0 && <p className="text-sm text-slate-500">No hay marcaciones para mostrar.</p>}
           <div className={`grid gap-5 ${visible.length > 1 ? "md:grid-cols-2" : ""}`}>
             {visible.map((i) => (
-              <figure key={i.key} className="overflow-hidden rounded-xl border border-slate-200">
+              <figure key={i.key} className="overflow-hidden rounded-[18px] border border-slate-200 bg-[#08120c]/35">
                 <div className="relative aspect-[4/3] bg-slate-100">
                   {i.sceneUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element

@@ -69,7 +69,8 @@ export default async function DayDetailPage(props: PageProps<"/dashboard/asisten
 
   return (
     <div className="mx-auto max-w-5xl">
-      <Link href="/dashboard" className="text-sm text-slate-500 hover:text-slate-700">← Asistencia</Link>
+      <Link href="/dashboard" className="jc-back">← Asistencia</Link>
+      <div className="mt-3" />
       <PageHeader
         title={emp.full_name}
         description={`${formatDateLabel(date)} · ${workDay ? `Horario de entrada ${entryTimeFor(schedule, date)}` : "Día libre (no le tocaba trabajar)"}`}
