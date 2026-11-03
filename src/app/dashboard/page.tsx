@@ -192,8 +192,8 @@ function Stat({
           : "text-slate-900";
   return (
     <div className={`jc-kpi ${color}`}>
-      <p className="text-[10.5px] tracking-[0.08em] text-slate-500 uppercase">{label}</p>
-      <p className="text-[26px] leading-tight font-medium tracking-tight">{value}</p>
+      <p className="text-[11px] font-medium tracking-[0.08em] text-slate-500 uppercase">{label}</p>
+      <p className="text-[28px] leading-tight font-semibold tracking-tight">{value}</p>
     </div>
   );
 }
