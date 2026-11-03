@@ -129,7 +129,7 @@ function Cells({ t, bold }: { t: TotalsRow; bold?: boolean }) {
       </td>
       <td className="td text-right whitespace-nowrap">
         {t.lostMinutes ? (
-          <span className="rounded-full bg-red-100 px-2 py-0.5 text-[11.5px] font-medium text-red-700">{formatMinutes(t.lostMinutes)}</span>
+          <span className="rounded-full border border-red-300 bg-red-100 px-2.5 py-0.5 text-[12.5px] font-semibold text-red-800">{formatMinutes(t.lostMinutes)}</span>
         ) : (
           <span className="text-slate-400">0</span>
         )}
