@@ -102,6 +102,44 @@ export type Database = {
           },
         ]
       }
+      annulled_days: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          employee_id: string
+          id: string
+          kind: string
+          reason: string | null
+          work_date: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          employee_id: string
+          id?: string
+          kind?: string
+          reason?: string | null
+          work_date: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          employee_id?: string
+          id?: string
+          kind?: string
+          reason?: string | null
+          work_date?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "annulled_days_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       attendance_events: {
         Row: {
           branch_id: string | null

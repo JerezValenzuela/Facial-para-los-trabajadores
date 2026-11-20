@@ -4,7 +4,14 @@ import type { Database } from "@/lib/supabase/database.types";
 import { DEFAULT_SETTINGS } from "@/lib/settings";
 import { todayInTz } from "@/lib/time";
 import type { TolerancePeriod } from "./tolerance";
-import { buildDailyReport, type ReportEvent, type ReportObservation, type ReportPermission, type ReportRow } from "./calc";
+import {
+  buildDailyReport,
+  type ReportAnnulment,
+  type ReportEvent,
+  type ReportObservation,
+  type ReportPermission,
+  type ReportRow,
+} from "./calc";
 import type { ReportFilters } from "./filters";
 
 export type ReportData = {
@@ -86,8 +93,9 @@ export async function loadReport(
 
   let permissions: ReportPermission[] = [];
   let observations: ReportObservation[] = [];
+  let annulments: ReportAnnulment[] = [];
   if (ids.length) {
-    const [{ data: perms }, { data: notes }] = await Promise.all([
+    const [{ data: perms }, { data: notes }, { data: annulled }] = await Promise.all([
       supabase
         .from("permissions")
         .select("employee_id, work_date, kind, start_time, hours")
@@ -100,9 +108,16 @@ export async function loadReport(
         .gte("work_date", filters.from)
         .lte("work_date", filters.to)
         .in("employee_id", ids),
+      supabase
+        .from("annulled_days")
+        .select("employee_id, work_date, kind, reason")
+        .gte("work_date", filters.from)
+        .lte("work_date", filters.to)
+        .in("employee_id", ids),
     ]);
     permissions = perms ?? [];
     observations = notes ?? [];
+    annulments = annulled ?? [];
   }
 
   let rows = buildDailyReport({
@@ -110,6 +125,7 @@ export async function loadReport(
     events,
     permissions,
     observations,
+    annulments,
     from: filters.from,
     to: filters.to,
     today: todayInTz(now),
@@ -125,9 +141,17 @@ export async function loadReport(
   });
   if (filters.onlyIssues) {
     rows = rows.filter(
-      (r) => r.flagged || r.status === "incompleto" || r.status === "sin_marcaciones" || r.permission || r.observation,
+      (r) =>
+        r.annulment ||
+        r.flagged ||
+        r.status === "incompleto" ||
+        r.status === "sin_marcaciones" ||
+        r.permission ||
+        r.observation,
     );
   }
+  // Los días anulados (o feriados) se ven en la tabla, pero no cuentan en los indicadores.
+  const counted = rows.filter((r) => !r.annulment);
 
   return {
     rows,
@@ -138,10 +162,10 @@ export async function loadReport(
     tolerancePeriods,
     totals: {
       rows: rows.length,
-      late: rows.filter((r) => r.lateMinutes > 0).length,
-      lunchExcess: rows.filter((r) => r.lunchExcessMinutes > 0).length,
-      incomplete: rows.filter((r) => r.status === "incompleto" || r.status === "sin_marcaciones").length,
-      permissions: rows.filter((r) => r.permission).length,
+      late: counted.filter((r) => r.lateMinutes > 0).length,
+      lunchExcess: counted.filter((r) => r.lunchExcessMinutes > 0).length,
+      incomplete: counted.filter((r) => r.status === "incompleto" || r.status === "sin_marcaciones").length,
+      permissions: counted.filter((r) => r.permission).length,
     },
   };
 }

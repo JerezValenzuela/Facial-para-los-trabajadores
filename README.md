@@ -135,6 +135,7 @@ Las migraciones están versionadas en `supabase/migrations/` y **ya están aplic
 | `…0017_tolerancias_por_fecha.sql` | Tabla `tolerance_periods`: tolerancias de entrada/almuerzo con fecha de vigencia (10/10 hasta el 29/10/2026; 5/5 desde el 30/10/2026) |
 | `…0016_salida_asumida_media_jornada.sql` | Configuración: `half_day_exit_time` (13:00): salida asumida en media jornada (sábado) |
 | `…0015_orden_obligatorio.sql` | `kiosk_register_attendance` con orden obligatorio (sin saltarse pasos; sábado/entrada desde 12:30 sin almuerzo) |
+| `…0018_dias_anulados.sql` | Tabla `annulled_days`: días anulados o feriados por empleado (no cuentan para nada; solo admin, RLS) |
 
 Tablas: `branches`, `branch_ips`, `employees`, `face_templates`, `attendance_events`, `failed_attempts`, `alerts`, `settings` y `admin_users`, más tres de soporte: `kiosk_challenges` (retos de un solo uso), `rate_limits` y `audit_log`.
 
@@ -251,6 +252,7 @@ Todas se editan en **Dashboard → Configuración** (tabla `settings`):
 | Horario del empleado | en su ficha | Cada empleado tiene **sus días de trabajo** y su hora de entrada: la misma todos los días o **una hora distinta por día**. En los días que no trabaja no aparece en Asistencia ni en el Excel; si marca igual, sale como “Libre” y sin atraso |
 | Días por defecto | Configuración | Solo pre-marcan los días al crear un empleado nuevo |
 | Observaciones | 1 por empleado y día | Botón **+** junto a la fecha en Asistencia: escribir, editar o borrar lo que pasó ese día. Salen en la tabla, en el detalle del día, con “Solo novedades” y en la columna **Observaciones** del Excel |
+| Anular día / Feriado | botón **⋯** al final de cada fila | **Anular día** (solo ese empleado) o **Feriado (todos)**: la fila queda **tachada** y ese día no cuenta para nada (horas, suplementarias, atraso, exceso de almuerzo ni falta). No se borra nada: marcaciones y fotos se siguen viendo. Motivo opcional. Se deshace desde el mismo ⋯ (“Quitar anulación” o “Quitar el feriado a todos”). En el Excel la fila sale gris y tachada, fuera de los totales |
 | Días sin almuerzo | sábado (por empleado) | En la ficha: “¿Qué días NO sale al almuerzo?”. Esos días con Entrar + Salir el día queda **Completo** y Horas = salida − entrada. No se asume salida a las 17:00 esos días |
 | Entró ya almorzado | desde 12:30 | Si entra a las 12:30 o después (sin marcar almuerzo), ese día no se pide ni descuenta almuerzo: Entrar 13:09 + Salir 17:29 = **4 h 20**, Completo (el atraso de entrada se mantiene). Se cambia en Configuración |
 | Tolerancia de almuerzo | 5 min (desde 30/10/2026; antes 10) | El exceso empieza después de *permitido + tolerancia*: volver a 1 h 05 no cuenta; a 1 h 06 es **1 min** de exceso (rojo). También vale desde el día en que se cambia |

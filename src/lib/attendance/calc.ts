@@ -356,6 +356,22 @@ export type ReportObservation = {
   note: string;
 };
 
+/** Día anulado por el administrador ("anulado": solo ese empleado; "feriado": se marcó para todos). */
+export type DayAnnulment = { kind: "anulado" | "feriado"; reason: string | null };
+
+export type ReportAnnulment = {
+  employee_id: string;
+  work_date: string;
+  kind: string;
+  reason: string | null;
+};
+
+/** "Feriado" o "Anulado" (con el motivo si lo hay). */
+export function annulmentLabel(a: DayAnnulment, withReason = false): string {
+  const base = a.kind === "feriado" ? "Feriado" : "Anulado";
+  return withReason && a.reason ? `${base}: ${a.reason}` : base;
+}
+
 export type ReportRow = DaySummary & {
   employeeId: string;
   employeeName: string;
@@ -374,6 +390,11 @@ export type ReportRow = DaySummary & {
   supplementaryMinutes: number | null;
   /** Se calcularon con salida o almuerzo asumidos (no marcó bien). */
   supplementaryAssumed: boolean;
+  /**
+   * Día anulado (o feriado): se muestra tachado y NO cuenta para nada (horas, suplementarias,
+   * atraso, exceso de almuerzo, faltas). Los valores del día se conservan solo para verlos.
+   */
+  annulment: DayAnnulment | null;
 };
 
 export function buildDailyReport(input: {
@@ -394,6 +415,7 @@ export function buildDailyReport(input: {
   tolerancePeriods?: TolerancePeriod[];
   permissions?: ReportPermission[];
   observations?: ReportObservation[];
+  annulments?: ReportAnnulment[];
 }): ReportRow[] {
   const byKey = new Map<string, Partial<Record<AttendanceEventType, Date>>>();
   for (const ev of input.events) {
@@ -420,6 +442,14 @@ export function buildDailyReport(input: {
 
   const observationByKey = new Map<string, string>();
   for (const o of input.observations ?? []) observationByKey.set(`${o.employee_id}|${o.work_date}`, o.note);
+
+  const annulmentByKey = new Map<string, DayAnnulment>();
+  for (const a of input.annulments ?? []) {
+    annulmentByKey.set(`${a.employee_id}|${a.work_date}`, {
+      kind: a.kind === "feriado" ? "feriado" : "anulado",
+      reason: a.reason?.trim() || null,
+    });
+  }
 
   const lastDay = input.to > input.today ? input.today : input.to;
   const dates = input.from <= lastDay ? dateRange(input.from, lastDay) : [];
@@ -476,6 +506,8 @@ export function buildDailyReport(input: {
         // Solo en sus días de trabajo de lunes a viernes.
         supplementaryMinutes: workDay ? computeSupplementary(date, summary, rules) : null,
         supplementaryAssumed: Boolean(summary.assumedExit || summary.assumedLunch),
+        // La anulación no hace aparecer filas: solo tacha las que ya se muestran.
+        annulment: annulmentByKey.get(`${emp.id}|${date}`) ?? null,
       });
     }
   }
@@ -543,6 +575,8 @@ export function summarizeByEmployee(rows: ReportRow[]): { employees: EmployeeTot
     supplementaryMinutes: 0,
   });
   const add = (t: TotalsRow, r: ReportRow) => {
+    // Día anulado o feriado: no cuenta para nada (ni como falta).
+    if (r.annulment) return;
     const excess = r.lunchOngoing ? 0 : r.lunchExcessMinutes;
     if (r.entrada) t.daysWorked += 1;
     if (r.status === "completo") t.daysComplete += 1;

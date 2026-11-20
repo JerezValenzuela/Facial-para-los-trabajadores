@@ -1,6 +1,6 @@
 import "server-only";
 import ExcelJS from "exceljs";
-import { STATUS_LABEL, summarizeByEmployee, type ReportRow } from "./calc";
+import { annulmentLabel, STATUS_LABEL, summarizeByEmployee, type ReportRow } from "./calc";
 import { formatPermission } from "./permissions";
 import type { ReportData } from "./report-data";
 import type { ReportFilters } from "./filters";
@@ -11,6 +11,9 @@ const RED_FILL = "FFFDE2E2";
 const RED_TEXT = "FFB91C1C";
 const YELLOW_FILL = "FFFEF3C7";
 const BLUE_FILL = "FFE0F2FE";
+/** Día anulado o feriado: fila gris y tachada. */
+const GRAY_FILL = "FFF1F5F9";
+const STRUCK_TEXT = "FF94A3B8";
 const HEADER_FILL = "FFEA580C";
 const BORDER = { style: "thin" as const, color: { argb: "FFE2E8F0" } };
 
@@ -186,7 +189,9 @@ export async function buildAttendanceWorkbook(
       worked: minutesToDuration(r.workedMinutes),
       supl: r.supplementaryMinutes,
       permission: formatPermission(r.permission) || null,
-      status: r.leftAtLunch
+      status: r.annulment
+        ? `${annulmentLabel(r.annulment, true)} · no cuenta`
+        : r.leftAtLunch
         ? `${STATUS_LABEL[r.status]} · salió al almuerzo y no volvió a marcar: horas solo hasta el almuerzo`
         : r.assumedExit || r.assumedLunch
           ? `${STATUS_LABEL[r.status]} · no marcó bien: horas asumidas` +
@@ -208,7 +213,8 @@ export async function buildAttendanceWorkbook(
         c.key === "observation"
           ? { vertical: "middle", horizontal: "left", wrapText: true }
           : { vertical: "middle", horizontal: i <= 4 ? "left" : "center" };
-      if (r.flagged) cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: RED_FILL } };
+      if (r.annulment) cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: GRAY_FILL } };
+      else if (r.flagged) cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: RED_FILL } };
       else if (incomplete) cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: YELLOW_FILL } };
       else if (r.status === "permiso") cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: BLUE_FILL } };
     });
@@ -239,6 +245,17 @@ export async function buildAttendanceWorkbook(
     if (r.assumedExit || r.assumedLunch) {
       row.getCell(col("worked")).font = { italic: true, color: { argb: MUTED_TEXT } };
       row.getCell(col("status")).alignment = { vertical: "middle", horizontal: "center", wrapText: true };
+    }
+
+    if (r.annulment) {
+      // Anulado o feriado: todo tachado en gris (se ve, pero no cuenta en los totales).
+      columns.forEach((c, i) => {
+        if (c.key === "status" || c.key === "photo" || c.key === "observation") return;
+        row.getCell(i + 1).font = { strike: true, color: { argb: STRUCK_TEXT } };
+      });
+      const status = row.getCell(col("status"));
+      status.font = { bold: true, color: { argb: MUTED_TEXT } };
+      status.alignment = { vertical: "middle", horizontal: "center", wrapText: true };
     }
 
     // Foto del trabajador (miniatura de su marcación de ese día), al lado del estado.
@@ -285,6 +302,7 @@ export async function buildAttendanceWorkbook(
   const legendRow = 7 + report.rows.length;
   ws.getCell(legendRow, 1).value =
     "Rojo: atraso o exceso de almuerzo · Amarillo: marcaciones incompletas · Celeste: permiso todo el día · " +
+    "Gris tachado: día anulado o feriado (no cuenta para nada) · " +
     "Gris cursiva: no marcó bien, horas asumidas (hasta la salida asumida, con el almuerzo permitido) · Horas en America/Guayaquil · " +
     "Foto: miniatura de la entrada del día (o de la primera marcación)";
   ws.getCell(legendRow, 1).font = { italic: true, size: 9, color: { argb: MUTED_TEXT } };
@@ -362,6 +380,7 @@ export async function buildAttendanceWorkbook(
     "Minutos perdidos = atraso de entrada + exceso de almuerzo. Ya están fuera de las horas reales: son informativos, NO se restan otra vez.",
     "Horas suplementarias (lunes a viernes) = tiempo contable de cada día − 8 h. Nada suma (ni llegar antes, ni volver antes del almuerzo, ni quedarse después de la salida normal); atraso y exceso de almuerzo (pasada la tolerancia), irse antes y los permisos restan. Positivo = horas a favor; negativo = debe tiempo. Sábados: no aplica (horas extra).",
     "No marcó bien = días con entrada incompletos. Si salió al almuerzo y no volvió a marcar, solo se cuentan sus horas hasta el almuerzo (horas marcadas).",
+    "Días anulados o feriados (tachados en la hoja Asistencia): no cuentan para nada, ni en horas, ni en suplementarias, ni como falta.",
     "Días sin horas (revisar): no se pudieron calcular (ej. entró después de la hora de salida asumida y no marcó \"Salir\"); revisar.",
   ];
   notes.forEach((text, i) => {

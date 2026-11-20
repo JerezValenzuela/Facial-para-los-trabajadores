@@ -38,6 +38,9 @@ export const uuid = z.uuid("Identificador inválido.");
 /** Observación del administrador (vacía = borrar). */
 export const observationNote = z.string().trim().max(1000, "La observación puede tener máximo 1000 caracteres.");
 
+/** Motivo de un día anulado o nombre del feriado (opcional; vacío = sin motivo). */
+export const annulmentReason = z.string().trim().max(200, "El motivo puede tener máximo 200 caracteres.");
+
 export const employeeSchema = z.object({
   full_name: trimmed(3, 120, "Nombre").regex(/^[\p{L}\s.'-]+$/u, "El nombre solo admite letras y espacios."),
   cedula: z

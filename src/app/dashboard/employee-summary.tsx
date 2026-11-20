@@ -89,6 +89,10 @@ export function EmployeeSummaryTable({
           informativos, no se restan otra vez.
         </li>
         <li>
+          <b>Días anulados o feriados</b> (tachados en la lista completa): no cuentan para nada, ni en horas, ni en
+          suplementarias, ni como falta.
+        </li>
+        <li>
           <b>No marcó bien</b>: días con entrada que no marcó completos (amarillo). Si salió al almuerzo y no volvió a marcar,
           solo se cuentan sus horas hasta el almuerzo. <b>Sin horas</b>: no se
           pudieron calcular (por ejemplo, entró después de la hora de salida asumida y no marcó “Salir”); revisa esos días (toca el nombre).

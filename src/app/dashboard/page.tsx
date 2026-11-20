@@ -155,7 +155,9 @@ export default async function AttendancePage(props: PageProps<"/dashboard">) {
       <p className="jc-in-top mt-3 max-w-[1400px] rounded-[18px] border border-slate-200 bg-[#0e1c14]/40 px-[18px] py-3.5 text-xs text-pretty text-slate-600 backdrop-blur-xl">
         Filas en <span className="font-semibold text-red-700">rojo</span>: atraso o exceso de almuerzo. En{" "}
         <span className="font-semibold text-amber-700">amarillo</span>: marcaciones incompletas. En{" "}
-        <span className="font-semibold text-sky-700">celeste</span>: permiso todo el día. “Libre” en Horario: marcó en un día
+        <span className="font-semibold text-sky-700">celeste</span>: permiso todo el día.{" "}
+        <span className="text-slate-400 line-through">Tachado</span>: día anulado o feriado, no cuenta para nada (se anula o se
+        quita con el botón ⋯ de la fila). “Libre” en Horario: marcó en un día
         que no le toca trabajar (no cuenta atraso). Valores con <i>*</i> en gris: no marcó bien; se cuenta hasta las{" "}
         {report.settings.default_exit_time.slice(0, 5)} con {report.settings.lunch_allowed_minutes} min de almuerzo (sábado: hasta las{" "}
         {report.settings.half_day_exit_time.slice(0, 5)}) (horas
